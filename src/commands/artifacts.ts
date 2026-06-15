@@ -6,7 +6,7 @@ import { showIntro, showOutro } from '../utils/banners.js';
 import * as log from '../utils/logger.js';
 import { parseConfig } from '../utils/parser.js';
 import { detectLanguage, ensureDir } from '../utils/utils.js';
-import { finalizeBundle, stagePlatformPackages } from './bundle.js';
+import { finalizeBundle, stagePlatformPackages, targetKey } from './bundle.js';
 
 import type { GoTarget } from '../types.js';
 
@@ -15,14 +15,15 @@ export interface ArtifactsOptions {
 }
 
 export interface DiscoveredBinary {
-  goos: string;
-  goarch: string;
+  target: GoTarget;
   sourcePath: string;
 }
 
 async function discoverBinaries(artifactsDir: string, pluginName: string, knownTargets: GoTarget[]): Promise<DiscoveredBinary[]> {
   const found: DiscoveredBinary[] = [];
-  const targetSet = new Set(knownTargets.map((t) => `${t.goos}-${t.goarch}`));
+  // Map each canonical key (incl. -musl) back to its target so we recover the
+  // full target (libc and all) instead of re-parsing the name.
+  const byKey = new Map(knownTargets.map((t) => [targetKey(t), t]));
 
   async function walk(dir: string): Promise<void> {
     const entries = await readdir(dir, { withFileTypes: true });
@@ -32,16 +33,15 @@ async function discoverBinaries(artifactsDir: string, pluginName: string, knownT
         await walk(fullPath);
         continue;
       }
-      // Match `<pluginName>-<goos>-<goarch>` or `<pluginName>-<goos>-<goarch>.exe`
+      // Match `<pluginName>-<key>` or `<pluginName>-<key>.exe`, where key is
+      // `<goos>-<goarch>[-musl]`.
       const stripped = entry.name.endsWith('.exe') ? entry.name.slice(0, -4) : entry.name;
       const prefix = `${pluginName}-`;
       if (!stripped.startsWith(prefix)) continue;
-      const rest = stripped.slice(prefix.length); // "<goos>-<goarch>"
-      if (!targetSet.has(rest)) continue;
-      const dashIdx = rest.lastIndexOf('-');
-      const goos = rest.slice(0, dashIdx);
-      const goarch = rest.slice(dashIdx + 1);
-      found.push({ goos, goarch, sourcePath: fullPath });
+      const rest = stripped.slice(prefix.length);
+      const target = byKey.get(rest);
+      if (!target) continue;
+      found.push({ target, sourcePath: fullPath });
     }
   }
 
@@ -87,29 +87,29 @@ export async function artifactsCommand(options: ArtifactsOptions = {}): Promise<
 
   const discovered = await discoverBinaries(artifactsDir, pluginName, knownTargets);
   if (discovered.length === 0) {
-    throw new Error(`No matching binaries found in ${artifactsDir} (looking for "${pluginName}-<goos>-<goarch>[.exe]")`);
+    throw new Error(`No matching binaries found in ${artifactsDir} (looking for "${pluginName}-<goos>-<goarch>[-musl][.exe]")`);
   }
 
   log.info(`Found ${discovered.length}/${knownTargets.length} target binaries:`);
   for (const b of discovered) {
-    log.info(`  ${b.goos}-${b.goarch}`);
+    log.info(`  ${targetKey(b.target)}`);
   }
-  const missingTargets = knownTargets.filter((t) => !discovered.some((d) => d.goos === t.goos && d.goarch === t.goarch));
+  const missingTargets = knownTargets.filter((t) => !discovered.some((d) => targetKey(d.target) === targetKey(t)));
   if (missingTargets.length > 0) {
-    log.error(`  Missing: ${missingTargets.map((t) => `${t.goos}-${t.goarch}`).join(', ')}`);
+    log.error(`  Missing: ${missingTargets.map((t) => targetKey(t)).join(', ')}`);
     throw new Error('Some target binaries are missing — refusing to ship a partial bundle.');
   }
 
   // Stage binaries into bundle/dist/bin/ with the canonical naming convention
-  // `<pluginName>-<goos>-<goarch>[.exe]`, then hand off to the same staging
-  // routine that the multi-target build uses.
+  // `<pluginName>-<key>[.exe]`, then hand off to the same staging routine that
+  // the multi-target build uses.
   const bundleDir = resolve(targetRootDir, 'bundle');
   const binDir = resolve(bundleDir, 'dist', 'bin');
   await ensureDir(binDir);
 
   for (const b of discovered) {
-    const ext = b.goos === 'windows' ? '.exe' : '';
-    const targetPath = resolve(binDir, `${pluginName}-${b.goos}-${b.goarch}${ext}`);
+    const ext = b.target.goos === 'windows' ? '.exe' : '';
+    const targetPath = resolve(binDir, `${pluginName}-${targetKey(b.target)}${ext}`);
     await mkdir(dirname(targetPath), { recursive: true });
     await rename(b.sourcePath, targetPath);
   }

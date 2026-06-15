@@ -33,15 +33,28 @@ function nodeOsToGoos(p: string): string {
 }
 
 function nodeArchToGoarch(a: string): string {
-  return a === 'x64' ? 'amd64' : a;
+  if (a === 'x64') return 'amd64';
+  if (a === 'mipsel') return 'mipsle'; // npm/Node spells it 'mipsel', Go 'mipsle'
+  return a;
 }
 
 function goosToNpmOs(g: string): string {
-  return g === 'windows' ? 'win32' : g;
+  return g === 'windows' ? 'win32' : g; // 'freebsd' maps through unchanged
 }
 
 function goarchToNpmCpu(g: string): string {
-  return g === 'amd64' ? 'x64' : g;
+  if (g === 'amd64') return 'x64';
+  if (g === 'mipsle') return 'mipsel'; // Go 'mipsle' -> npm/Node 'mipsel'
+  return g; // arm64, riscv64 share the same name
+}
+
+function targetLibc(t: Pick<GoTarget, 'goos' | 'libc'>): 'glibc' | 'musl' | undefined {
+  if (t.goos !== 'linux') return undefined;
+  return t.libc ?? 'glibc';
+}
+
+export function targetKey(t: Pick<GoTarget, 'goos' | 'goarch' | 'libc'>): string {
+  return targetLibc(t) === 'musl' ? `${t.goos}-${t.goarch}-musl` : `${t.goos}-${t.goarch}`;
 }
 
 function resolveGoTargets(mode: string | undefined, goOpts?: GoBuildOptions): GoTarget[] {
@@ -74,30 +87,36 @@ export async function stagePlatformPackages(args: StagePlatformPackagesArgs): Pr
 
   const optionalDeps: Record<string, string> = {};
 
-  for (const { goos, goarch } of args.targets) {
+  for (const target of args.targets) {
+    const { goos, goarch } = target;
+    const key = targetKey(target);
+    const libc = targetLibc(target);
     const ext = goos === 'windows' ? '.exe' : '';
-    const platformDir = resolve(platformsDir, `${goos}-${goarch}`);
+    const platformDir = resolve(platformsDir, key);
     await ensureDir(platformDir);
 
-    const binaryName = `${args.pluginName}-${goos}-${goarch}${ext}`;
+    const binaryName = `${args.pluginName}-${key}${ext}`;
     const sourcePath = resolve(args.binDir, binaryName);
     const targetBinaryName = `${args.pluginName}${ext}`;
 
     if (!existsSync(sourcePath)) {
-      log.error(`  Missing binary for ${goos}-${goarch}: ${sourcePath}`);
+      log.error(`  Missing binary for ${key}: ${sourcePath}`);
       throw new Error(`Binary not found: ${sourcePath}`);
     }
 
     await cp(sourcePath, resolve(platformDir, targetBinaryName));
     await rm(sourcePath);
 
-    const platformPkgName = args.packageScope ? `${args.packageScope}/${args.pluginName}-${goos}-${goarch}` : `${args.pluginName}-${goos}-${goarch}`;
+    const platformPkgName = args.packageScope ? `${args.packageScope}/${args.pluginName}-${key}` : `${args.pluginName}-${key}`;
 
     const platformPkg = {
       name: platformPkgName,
       version: args.packageJson.version ?? '0.0.1',
       os: [goosToNpmOs(goos)],
       cpu: [goarchToNpmCpu(goarch)],
+      // `libc` lets npm skip a glibc build on musl systems (e.g. Alpine) and
+      // vice versa — without it npm would install a binary that can't exec.
+      ...(libc ? { libc: [libc] } : {}),
       main: targetBinaryName,
       files: [targetBinaryName],
       license: args.packageJson.license ?? 'MIT',
@@ -288,14 +307,23 @@ async function processPackageJson({ rootDir, outDir, external, pluginLanguage, g
       const version = packageJson.version ?? '0.0.1';
 
       const optionalDeps: Record<string, string> = {};
-      for (const { goos, goarch } of goTargets) {
-        const platformPkgName = packageScope ? `${packageScope}/${pluginName}-${goos}-${goarch}` : `${pluginName}-${goos}-${goarch}`;
+      for (const target of goTargets) {
+        const key = targetKey(target);
+        const platformPkgName = packageScope ? `${packageScope}/${pluginName}-${key}` : `${pluginName}-${key}`;
         optionalDeps[platformPkgName] = version;
       }
 
       packageJson.optionalDependencies = optionalDeps;
       packageJson.scripts = { ...packageJson.scripts, postinstall: 'node postinstall.js' };
     }
+
+    // Lean main package: the server only needs bundle.zip (it extracts it on
+    // install). This keeps the platform binaries staged under bundle/platforms/
+    // out of the main tarball — each ships in its own platform package via
+    // optionalDependencies instead of being duplicated into every install.
+    // package.json/README/LICENSE are auto-included by npm; CHANGELOG isn't, so
+    // it's listed explicitly to keep it on the npm page.
+    packageJson.files = ['bundle.zip', 'CHANGELOG.md'];
 
     const targetPath = resolve(outDir, 'package.json');
     await writeFile(targetPath, JSON.stringify(packageJson, null, 2));
@@ -463,15 +491,11 @@ export async function buildProject(options: BuildOptions = {}): Promise<void> {
       // skipped — that's the `artifacts` command's job once all matrix jobs
       // have uploaded their respective binaries.
       if (options.target) {
-        const dashIdx = options.target.lastIndexOf('-');
-        if (dashIdx <= 0) {
-          throw new Error(`--target must be in the form <goos>-<goarch> (got "${options.target}")`);
-        }
-        const wantGoos = options.target.slice(0, dashIdx);
-        const wantGoarch = options.target.slice(dashIdx + 1);
-        const match = targets.find((t) => t.goos === wantGoos && t.goarch === wantGoarch);
+        // The --target value is a canonical target key: <goos>-<goarch> or, for
+        // musl linux builds, <goos>-<goarch>-musl (e.g. linux-amd64-musl).
+        const match = targets.find((t) => targetKey(t) === options.target);
         if (!match) {
-          const available = targets.map((t) => `${t.goos}-${t.goarch}`).join(', ');
+          const available = targets.map((t) => targetKey(t)).join(', ');
           throw new Error(`--target ${options.target} not in plugin's configured targets [${available}]`);
         }
         targets = [match];
@@ -486,13 +510,15 @@ export async function buildProject(options: BuildOptions = {}): Promise<void> {
 
       for (const target of targets) {
         const { goos, goarch } = target;
+        const key = targetKey(target);
         const ext = goos === 'windows' ? '.exe' : '';
         // Naming:
         //  - dev mode (no --target): unsuffixed `plugin` for direct local run
-        //  - --target / production: `<pluginName>-<goos>-<goarch>[.exe]` so
-        //    matrix runners can upload an artifact whose name encodes the
-        //    target, and the `artifacts` command can match it back
-        const outputName = isDev && !options.target ? `plugin${ext}` : `${pluginName}-${goos}-${goarch}${ext}`;
+        //  - --target / production: `<pluginName>-<key>[.exe]` (key encodes the
+        //    target incl. a -musl suffix) so matrix runners can upload an
+        //    artifact whose name encodes the target, and the `artifacts`
+        //    command can match it back
+        const outputName = isDev && !options.target ? `plugin${ext}` : `${pluginName}-${key}${ext}`;
         const outputPath = resolve(binDir, outputName);
         // Per-target CGo + CC overrides — `cameraui.config.ts` can opt in
         // CGo only for the platforms that need it (e.g. darwin Foundation
@@ -508,7 +534,7 @@ export async function buildProject(options: BuildOptions = {}): Promise<void> {
         };
         if (target.cc) targetEnv.CC = target.cc;
         const cgoLabel = targetCgoEnabled === '1' ? ' [CGO]' : '';
-        log.info(`  Building ${pluginName}-${goos}-${goarch}${ext}${cgoLabel}...`);
+        log.info(`  Building ${pluginName}-${key}${ext}${cgoLabel}...`);
         try {
           // execFileSync (no shell) avoids cross-platform quoting headaches —
           // PowerShell on Windows doesn't strip single quotes, so a shell-style
@@ -520,9 +546,9 @@ export async function buildProject(options: BuildOptions = {}): Promise<void> {
             stdio: 'pipe',
             env: { ...process.env, ...targetEnv },
           });
-          log.success(`  Built ${pluginName}-${goos}-${goarch}${ext}`);
+          log.success(`  Built ${pluginName}-${key}${ext}`);
         } catch (err) {
-          log.error(`  Failed to build ${pluginName}-${goos}-${goarch}${ext}: ${(err as Error).message}`);
+          log.error(`  Failed to build ${pluginName}-${key}${ext}: ${(err as Error).message}`);
           throw err;
         }
       }

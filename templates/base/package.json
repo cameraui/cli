@@ -1,0 +1,20 @@
+{
+  "displayName": "",
+  "name": "",
+  "private": true,
+  "version": "0.0.1",
+  "description": "camera.ui plugin",
+  "type": "module",
+  "main": "",
+  "scripts": {},
+  "dependencies": {},
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "updates": "^17.4.0"
+  },
+  "engines": {},
+  "keywords": [
+    "camera-ui-plugin"
+  ],
+  "license": "MIT"
+}

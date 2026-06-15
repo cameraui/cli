@@ -1,0 +1,6 @@
+{
+  "@camera.ui/sdk": "^0.0.3",
+  "@types/node": "^24.10.1",
+  "rimraf": "^6.1.2",
+  "typescript": "5.9.3"
+}

@@ -341,6 +341,83 @@ async function createBundleZip(bundleDir: string): Promise<void> {
   }
 }
 
+export interface FinalizeBundleArgs {
+  targetRootDir: string;
+  bundleDir: string;
+  rootDir: string;
+  pluginLanguage: PluginLanguage;
+  external: (string | RegExp)[];
+  additionalFiles?: string[] | { source: string; target: string }[];
+  goTargets?: GoTarget[];
+  isDev: boolean;
+}
+
+export async function finalizeBundle(args: FinalizeBundleArgs): Promise<void> {
+  const { targetRootDir, bundleDir, rootDir, pluginLanguage, external, additionalFiles, goTargets, isDev } = args;
+
+  // Bundle contract.ts (always at root level, required for all plugins)
+  const contractInput = resolve(targetRootDir, 'contract.ts');
+
+  if (!existsSync(contractInput)) {
+    throw new Error(`Missing contract.ts at ${contractInput}. Every plugin requires a contract.ts file at the project root.`);
+  }
+
+  log.info('Bundling contract...');
+
+  // Bundle contract with esbuild - no externals, enum values are inlined
+  // Use .cjs extension to ensure Node.js treats it as CommonJS regardless of package.json "type"
+  await esbuild.build({
+    entryPoints: [contractInput],
+    bundle: true,
+    platform: 'node',
+    target: 'node18',
+    format: 'cjs',
+    outfile: resolve(bundleDir, 'contract.cjs'),
+    sourcemap: isDev,
+    minify: false, // Keep contract readable for debugging
+    logLevel: 'warning',
+  });
+  log.success('Contract bundled');
+
+  // Validate contract
+  log.info('Validating contract...');
+  const contractPath = resolve(bundleDir, 'contract.cjs');
+  const contractModule = await import(pathToFileURL(contractPath).href);
+  const contract = contractModule.contract ?? contractModule.default;
+
+  if (!contract) {
+    throw new Error('Contract not found. Ensure your contract.ts exports "contract" or uses a default export.');
+  }
+
+  const validationErrors = getContractValidationErrors(contract);
+  if (validationErrors.length > 0) {
+    const errorList = validationErrors.map((e) => `  - ${e}`).join('\n');
+    throw new Error(`Invalid contract structure:\n${errorList}`);
+  }
+
+  validateContractConsistency(contract);
+  log.success('Contract validated');
+
+  await copyStandardFiles(rootDir, bundleDir);
+
+  if (additionalFiles?.length) {
+    await copyAdditionalFiles(rootDir, additionalFiles, bundleDir);
+  }
+
+  await processPackageJson({
+    rootDir,
+    outDir: bundleDir,
+    external,
+    pluginLanguage,
+    goTargets,
+    isDev,
+  });
+
+  if (!isDev) {
+    await createBundleZip(bundleDir);
+  }
+}
+
 export interface BuildOptions {
   target?: string;
 }
@@ -542,69 +619,17 @@ export async function buildProject(options: BuildOptions = {}): Promise<void> {
       log.success('Plugin bundled');
     }
 
-    // Bundle contract.ts (always at root level, required for all plugins)
-    const contractInput = resolve(targetRootDir, 'contract.ts');
-
-    if (!existsSync(contractInput)) {
-      throw new Error(`Missing contract.ts at ${contractInput}. Every plugin requires a contract.ts file at the project root.`);
-    }
-
-    log.info('Bundling contract...');
-    const isDevelopment = userConfig.mode === 'development';
-
-    // Bundle contract with esbuild - no externals, enum values are inlined
-    // Use .cjs extension to ensure Node.js treats it as CommonJS regardless of package.json "type"
-    await esbuild.build({
-      entryPoints: [contractInput],
-      bundle: true,
-      platform: 'node',
-      target: 'node18',
-      format: 'cjs',
-      outfile: resolve(bundleDir, 'contract.cjs'),
-      sourcemap: isDevelopment,
-      minify: false, // Keep contract readable for debugging
-      logLevel: 'warning',
-    });
-    log.success('Contract bundled');
-
-    // Validate contract
-    log.info('Validating contract...');
-    const contractPath = resolve(bundleDir, 'contract.cjs');
-    const contractModule = await import(pathToFileURL(contractPath).href);
-    const contract = contractModule.contract ?? contractModule.default;
-
-    if (!contract) {
-      throw new Error('Contract not found. Ensure your contract.ts exports "contract" or uses a default export.');
-    }
-
-    const validationErrors = getContractValidationErrors(contract);
-    if (validationErrors.length > 0) {
-      const errorList = validationErrors.map((e) => `  - ${e}`).join('\n');
-      throw new Error(`Invalid contract structure:\n${errorList}`);
-    }
-
-    validateContractConsistency(contract);
-    log.success('Contract validated');
-
-    await copyStandardFiles(rootDir, bundleDir);
-
-    if (userConfig.additionalFiles?.length) {
-      await copyAdditionalFiles(rootDir, userConfig.additionalFiles, bundleDir);
-    }
-
     const external = Array.isArray(userConfig.external) ? userConfig.external : [];
-    await processPackageJson({
+    await finalizeBundle({
+      targetRootDir,
+      bundleDir,
       rootDir,
-      outDir: bundleDir,
-      external,
       pluginLanguage,
+      external,
+      additionalFiles: userConfig.additionalFiles,
       goTargets,
       isDev: userConfig.mode === 'development',
     });
-
-    if (userConfig.mode !== 'development') {
-      await createBundleZip(bundleDir);
-    }
 
     const duration = Date.now() - startTime;
     log.buildSuccess(bundleDir, duration);

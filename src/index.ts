@@ -41,6 +41,8 @@ program
   .option('-a, --alpha', 'Publish an alpha version')
   .option('-b, --beta', 'Publish a beta version')
   .option('-l, --latest', 'Publish a latest version')
+  .option('-y, --yes', 'Non-interactive: publish the version in bundle/package.json without prompts (CI)')
+  .option('--provenance', 'Publish with npm provenance (--provenance --access public); requires OIDC in CI')
   .action(async (options) => {
     await publishProject(options);
   });

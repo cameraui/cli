@@ -108,19 +108,29 @@ export async function publishProject(options: PublishOptions) {
   const { name, version } = pJson;
   const tag = options.alpha ? 'alpha' : options.beta ? 'beta' : options.latest ? 'latest' : 'latest';
 
-  const targetVersion = handleCancel(
-    await text({
-      message: 'Version:',
-      placeholder: version,
-      defaultValue: version,
-      validate: (value) => {
-        if (!semver.valid(value)) {
-          return 'Invalid version format. Please use semver (e.g. 1.0.0)';
-        }
-        return undefined;
-      },
-    }),
-  );
+  // Non-interactive mode (CI): publish exactly the version baked into
+  // bundle/package.json — no prompts. The version is the single source of
+  // truth (set by the release tag), so there's nothing to confirm.
+  const targetVersion = options.yes
+    ? version
+    : handleCancel(
+        await text({
+          message: 'Version:',
+          placeholder: version,
+          defaultValue: version,
+          validate: (value) => {
+            if (!semver.valid(value)) {
+              return 'Invalid version format. Please use semver (e.g. 1.0.0)';
+            }
+            return undefined;
+          },
+        }),
+      );
+
+  if (!semver.valid(targetVersion)) {
+    log.error(`Invalid version in bundle/package.json: ${targetVersion}`);
+    process.exit(1);
+  }
 
   // Validate version doesn't already exist
   const versionValid = await validateVersion(name, targetVersion);
@@ -128,15 +138,17 @@ export async function publishProject(options: PublishOptions) {
     process.exit(1);
   }
 
-  const action = handleCancel(
-    await select({
-      message: `Publishing ${name}@${targetVersion} (${tag}). Pick an action:`,
-      options: [
-        { value: 'publish', label: 'Publish' },
-        { value: 'cancel', label: 'Cancel' },
-      ],
-    }),
-  );
+  const action = options.yes
+    ? 'publish'
+    : handleCancel(
+        await select({
+          message: `Publishing ${name}@${targetVersion} (${tag}). Pick an action:`,
+          options: [
+            { value: 'publish', label: 'Publish' },
+            { value: 'cancel', label: 'Cancel' },
+          ],
+        }),
+      );
 
   if (action === 'cancel') {
     showCancel('Operation cancelled');
@@ -147,6 +159,11 @@ export async function publishProject(options: PublishOptions) {
     try {
       log.info('Updating package version...');
       pJson.version = targetVersion;
+
+      // Extra flags for CI publishes: `--provenance` emits an OIDC-signed
+      // provenance attestation, `--access public` is required for the first
+      // publish of a scoped package.
+      const extraArgs = options.provenance ? ['--provenance', '--access', 'public'] : [];
 
       // Publish platform packages first
       const platformsDir = resolve(process.cwd(), 'bundle', 'platforms');
@@ -170,7 +187,7 @@ export async function publishProject(options: PublishOptions) {
 
             log.info(`  Publishing ${platformPkg.name}@${targetVersion}...`);
             process.env.SAFE_PUBLISH = 'true';
-            await spawnPromise('npm', ['publish', '--tag', tag], platformDir);
+            await spawnPromise('npm', ['publish', '--tag', tag, ...extraArgs], platformDir);
             log.success(`  Published ${platformPkg.name}@${targetVersion}`);
           }
 
@@ -189,7 +206,7 @@ export async function publishProject(options: PublishOptions) {
 
       process.env.SAFE_PUBLISH = 'true';
 
-      const args = ['publish', '--tag', tag];
+      const args = ['publish', '--tag', tag, ...extraArgs];
       await spawnPromise('npm', args, resolve(process.cwd(), 'bundle'));
 
       showOutro(`Successfully published ${name}@${targetVersion}`);

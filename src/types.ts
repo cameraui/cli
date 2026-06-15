@@ -43,4 +43,6 @@ export interface PublishOptions {
   alpha?: boolean;
   beta?: boolean;
   latest?: boolean;
+  yes?: boolean;
+  provenance?: boolean;
 }

@@ -6,6 +6,7 @@ import { showIntro, showOutro } from '../utils/banners.js';
 import * as log from '../utils/logger.js';
 import { parseConfig } from '../utils/parser.js';
 import { detectLanguage, ensureDir } from '../utils/utils.js';
+import { finalizeBundle, stagePlatformPackages } from './bundle.js';
 
 import type { GoTarget } from '../types.js';
 
@@ -113,9 +114,6 @@ export async function artifactsCommand(options: ArtifactsOptions = {}): Promise<
     await rename(b.sourcePath, targetPath);
   }
 
-  // Late import of staging helper avoids a top-level require cycle between
-  // bundle.ts and artifacts.ts.
-  const { stagePlatformPackages } = await import('./bundle.js');
   await stagePlatformPackages({
     targets: knownTargets,
     binDir,
@@ -124,6 +122,17 @@ export async function artifactsCommand(options: ArtifactsOptions = {}): Promise<
     packageScope,
     packageJson,
     rootDir,
+  });
+
+  await finalizeBundle({
+    targetRootDir,
+    bundleDir,
+    rootDir,
+    pluginLanguage,
+    external: Array.isArray(userConfig.external) ? userConfig.external : [],
+    additionalFiles: userConfig.additionalFiles,
+    goTargets: knownTargets,
+    isDev: false,
   });
 
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);

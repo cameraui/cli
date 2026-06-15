@@ -160,10 +160,10 @@ export async function publishProject(options: PublishOptions) {
       log.info('Updating package version...');
       pJson.version = targetVersion;
 
-      // Extra flags for CI publishes: `--provenance` emits an OIDC-signed
-      // provenance attestation, `--access public` is required for the first
-      // publish of a scoped package.
-      const extraArgs = options.provenance ? ['--provenance', '--access', 'public'] : [];
+      // `--access public` is required for the first publish of a scoped
+      // package and harmless afterwards, so it's always passed. `--provenance`
+      // additionally emits an OIDC-signed provenance attestation (CI only).
+      const extraArgs = ['--access', 'public', ...(options.provenance ? ['--provenance'] : [])];
 
       // Publish platform packages first
       const platformsDir = resolve(process.cwd(), 'bundle', 'platforms');

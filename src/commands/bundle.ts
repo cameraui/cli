@@ -3,10 +3,10 @@ import AdmZip from 'adm-zip';
 import * as esbuild from 'esbuild';
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { copyFile, cp, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { cp, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { arch, platform } from 'node:os';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import { showIntro, showOutro } from '../utils/banners.js';
 import * as log from '../utils/logger.js';
@@ -15,9 +15,6 @@ import { copyPath, detectLanguage, ensureDir, findFile } from '../utils/utils.js
 
 import type { GoBuildOptions, GoTarget, PluginLanguage } from '../types.js';
 import type { RequiredFile } from '../utils/utils.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
 
 const DEFAULT_GO_TARGETS: GoTarget[] = [
   { goos: 'linux', goarch: 'amd64' },
@@ -122,19 +119,15 @@ export async function stagePlatformPackages(args: StagePlatformPackagesArgs): Pr
     optionalDeps[platformPkgName] = platformPkg.version;
   }
 
-  // Copy postinstall.js stub — resolves the right platform sub-package at
-  // install-time and copies its binary into dist/bin/plugin.
-  const postinstallTemplatePath = resolve(__dirname, '../../templates/go/postinstall.js');
-  await copyFile(postinstallTemplatePath, resolve(args.bundleDir, 'postinstall.js'));
-
-  // Update plugin root package.json with optionalDependencies pointing at
-  // each platform sub-package. npm picks the matching one based on os/cpu
-  // fields from the platform package's own package.json.
+  // Update plugin root package.json with optionalDependencies pointing at each
+  // platform sub-package. npm installs the matching one (os/cpu/libc) and the
+  // server resolves + runs its binary in place at spawn time — no install-time
+  // copy, so nothing relies on an npm lifecycle script (npm v12 disables those
+  // for dependencies by default).
   const rootPkgPath = resolve(args.rootDir, 'package.json');
   const rootPkgRaw = await readFile(rootPkgPath, 'utf-8');
-  const rootPkg = JSON.parse(rootPkgRaw) as { optionalDependencies?: Record<string, string>; scripts?: Record<string, string> };
+  const rootPkg = JSON.parse(rootPkgRaw) as { optionalDependencies?: Record<string, string> };
   rootPkg.optionalDependencies = { ...(rootPkg.optionalDependencies ?? {}), ...optionalDeps };
-  rootPkg.scripts = { ...(rootPkg.scripts ?? {}), postinstall: 'node postinstall.js' };
   await writeFile(rootPkgPath, `${JSON.stringify(rootPkg, null, 2)}\n`);
 
   // Clean up the cross-compile staging dir; binaries now live in platforms/.
@@ -310,7 +303,6 @@ async function processPackageJson({ rootDir, outDir, external, pluginLanguage, g
       }
 
       packageJson.optionalDependencies = optionalDeps;
-      packageJson.scripts = { ...packageJson.scripts, postinstall: 'node postinstall.js' };
     }
 
     // Lean main package: the server only needs bundle.zip (it extracts it on

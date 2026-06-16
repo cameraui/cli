@@ -1,10 +1,10 @@
 <p align="center">
-    <img src="https://raw.githubusercontent.com/SeydX/camera.ui/refs/heads/master/images/logo.png">
+    <img src="https://raw.githubusercontent.com/cameraui/camera.ui/refs/heads/master/images/logo.png">
 </p>
 
 # {{projectName}}
 
-A plugin for [camera.ui](https://github.com/SeydX/camera.ui) that allows you to extend the functionality of your camera system.
+A plugin for [camera.ui](https://github.com/cameraui/camera.ui) that allows you to extend the functionality of your camera system.
 
 ## Setup Development Environment
 
@@ -186,8 +186,8 @@ The CLI will guide you through version selection and publishing.
 
 ## Useful Links
 
-- [camera.ui Documentation](https://github.com/SeydX/camera.ui/wiki)
-- [Plugin Development Guide](https://github.com/SeydX/camera.ui/wiki/plugins)
+- [camera.ui Documentation](https://github.com/cameraui/camera.ui/wiki)
+- [Plugin Development Guide](https://github.com/cameraui/camera.ui/wiki/plugins)
 - [JSON Schema Documentation](https://json-schema.org/)
 - [Node.js Documentation](https://nodejs.org/docs)
 - [TypeScript Documentation](https://www.typescriptlang.org/docs/)

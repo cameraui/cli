@@ -8,6 +8,7 @@ import { arch, platform } from 'node:os';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+import { isPlatformPackageNode, isPlatformPackagePython, PLATFORM_PACKAGES_NODE } from '../platform-packages.js';
 import { showIntro, showOutro } from '../utils/banners.js';
 import * as log from '../utils/logger.js';
 import { parseConfig } from '../utils/parser.js';
@@ -185,35 +186,25 @@ async function copyAdditionalFiles(rootDir: string, paths: string[] | { source: 
   }
 }
 
-// TODO: Uncomment when server-side compatibility check is implemented
-// /**
-//  * Parse requirements.txt and extract camera-ui-sdk version
-//  */
-// async function parsePythonTypesVersion(rootDir: string): Promise<string | undefined> {
-//   const requirementsPath = resolve(rootDir, 'requirements.txt');
-//
-//   if (!existsSync(requirementsPath)) {
-//     return undefined;
-//   }
-//
-//   try {
-//     const content = await readFile(requirementsPath, 'utf-8');
-//     const lines = content.split('\n');
-//
-//     for (const line of lines) {
-//       const trimmed = line.trim();
-//       // Match patterns like: camera-ui-sdk==2.0.7 or camera-ui-sdk>=2.0.0
-//       const match = /^camera-ui-sdk([=<>!~]+.+)$/.exec(trimmed);
-//       if (match) {
-//         return match[1]; // Returns "==2.0.7" or ">=2.0.0"
-//       }
-//     }
-//   } catch {
-//     // Ignore parsing errors
-//   }
-//
-//   return undefined;
-// }
+async function stripPlatformPythonRequirements(bundleDir: string): Promise<void> {
+  const requirementsPath = resolve(bundleDir, 'requirements.txt');
+  if (!existsSync(requirementsPath)) {
+    return;
+  }
+
+  const content = await readFile(requirementsPath, 'utf-8');
+  const kept = content.split('\n').filter((line) => {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) {
+      return true;
+    }
+    // Package name is everything before a version specifier, extras, or marker.
+    const name = trimmed.split(/[=<>!~;[ ]/)[0];
+    return !isPlatformPackagePython(name);
+  });
+
+  await writeFile(requirementsPath, kept.join('\n'));
+}
 
 interface ProcessPackageJsonOptions {
   rootDir: string;
@@ -239,16 +230,20 @@ async function processPackageJson({ rootDir, outDir, external, pluginLanguage, g
 
     delete packageJson.private;
 
-    // TODO: Uncomment when server-side compatibility check is implemented
-    // // Extract @camera.ui/sdk version from devDependencies before deleting
-    // // This will be added as peerDependency for runtime compatibility checking
-    // const cameraUiTypesVersion =
-    //   packageJson.devDependencies?.['@camera.ui/sdk'] ?? packageJson.dependencies?.['@camera.ui/sdk'] ?? packageJson.peerDependencies?.['@camera.ui/sdk'];
-    //
-    // // For Python plugins, also extract camera-ui-sdk version from requirements.txt
-    // const pythonTypesVersion = pluginLanguage === 'python' ? await parsePythonTypesVersion(rootDir) : undefined;
-
     delete packageJson.devDependencies;
+
+    for (const section of ['dependencies', 'peerDependencies', 'optionalDependencies'] as const) {
+      const deps = packageJson[section] as Record<string, string> | undefined;
+      if (!deps) continue;
+      for (const name of Object.keys(deps)) {
+        if (isPlatformPackageNode(name)) {
+          delete deps[name];
+        }
+      }
+      if (Object.keys(deps).length === 0) {
+        delete packageJson[section];
+      }
+    }
 
     if (packageJson.dependencies) {
       const newDependencies: Record<string, string> = {};
@@ -272,22 +267,6 @@ async function processPackageJson({ rootDir, outDir, external, pluginLanguage, g
         delete packageJson.dependencies;
       }
     }
-
-    // TODO: Uncomment when server-side compatibility check is implemented
-    // // Add peerDependencies for server compatibility checking
-    // const peerDependencies: Record<string, string> = {};
-    //
-    // if (cameraUiTypesVersion) {
-    //   peerDependencies['@camera.ui/sdk'] = cameraUiTypesVersion;
-    // }
-    //
-    // if (pythonTypesVersion) {
-    //   peerDependencies['camera-ui-sdk'] = pythonTypesVersion;
-    // }
-    //
-    // if (Object.keys(peerDependencies).length > 0) {
-    //   packageJson.peerDependencies = peerDependencies;
-    // }
 
     // Go production: inject optionalDependencies and postinstall script
     if (pluginLanguage === 'go' && goTargets?.length && !isDev) {
@@ -417,6 +396,10 @@ export async function finalizeBundle(args: FinalizeBundleArgs): Promise<void> {
   log.success('Contract validated');
 
   await copyStandardFiles(rootDir, bundleDir);
+
+  if (pluginLanguage === 'python') {
+    await stripPlatformPythonRequirements(bundleDir);
+  }
 
   if (additionalFiles?.length) {
     await copyAdditionalFiles(rootDir, additionalFiles, bundleDir);
@@ -579,8 +562,10 @@ export async function buildProject(options: BuildOptions = {}): Promise<void> {
       // esbuild handles CJS/ESM interop much better than Rollup for export * re-exports
       log.info('Bundling plugin...');
 
-      // Build external list: @camera.ui/sdk + user externals
-      const externals: string[] = ['@camera.ui/sdk'];
+      // Build external list: host-provided platform packages + user externals.
+      // Platform packages are resolved from the host at runtime
+      // via NODE_PATH, never bundled.
+      const externals: string[] = [...PLATFORM_PACKAGES_NODE];
 
       // Add user-defined externals (convert RegExp to string patterns for esbuild)
       if (userConfig.external) {

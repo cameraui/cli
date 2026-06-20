@@ -9,8 +9,8 @@
   "scripts": {},
   "dependencies": {},
   "devDependencies": {
-    "cross-env": "^7.0.3",
-    "updates": "^17.4.0"
+    "cross-env": "^1.0.1",
+    "updates": "^17.18.0"
   },
   "engines": {},
   "keywords": [

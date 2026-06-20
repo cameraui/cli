@@ -18,7 +18,7 @@
     "prepublishOnly": "npm i --package-lock-only && npm run lint:fix && npm run format && npm run build"
   },
   "dependencies": {
-    "@camera.ui/sdk": "^0.0.5",
+    "@camera.ui/sdk": "^0.0.7",
     "@clack/prompts": "^1.5.1",
     "adm-zip": "^0.5.17",
     "commander": "^15.0.0",

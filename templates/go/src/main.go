@@ -1,7 +1,7 @@
 package main
 
 import (
-	sdk "github.com/seydx/camera-ui-sdk"
+	sdk "github.com/cameraui/sdk/go"
 )
 
 // {{pluginName}}Plugin is the main plugin struct.

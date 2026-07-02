@@ -34,7 +34,7 @@
     "@stylistic/eslint-plugin": "^5.10.0",
     "@types/adm-zip": "^0.5.8",
     "@types/fs-extra": "^11.0.4",
-    "@types/node": "26.0.1",
+    "@types/node": "26.1.0",
     "@types/semver": "^7.7.1",
     "@typescript-eslint/parser": "^8.62.1",
     "eslint": "9.39.2",

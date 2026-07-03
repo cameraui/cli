@@ -9,6 +9,8 @@ export interface GoTarget {
   cgoEnabled?: '0' | '1';
   cc?: string;
   ldflags?: string;
+  compiler?: string;
+  compilerArgs?: string[];
 }
 
 export interface GoBuildOptions {
@@ -16,6 +18,8 @@ export interface GoBuildOptions {
   ldflags?: string;
   cgoEnabled?: '0' | '1';
   env?: Record<string, string>;
+  compiler?: string;
+  compilerArgs?: string[];
 }
 
 export interface CameraUiBuildOptions {

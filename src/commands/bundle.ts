@@ -476,6 +476,8 @@ export async function buildProject(options: BuildOptions = {}): Promise<void> {
       const defaultLdflags = goOpts?.ldflags ?? '-s -w';
       const defaultCgoEnabled = goOpts?.cgoEnabled ?? '0';
       const extraEnv = goOpts?.env ?? {};
+      const defaultCompiler = goOpts?.compiler ?? 'go';
+      const defaultCompilerArgs = goOpts?.compilerArgs ?? [];
 
       const isDev = userConfig.mode === 'development';
 
@@ -504,15 +506,19 @@ export async function buildProject(options: BuildOptions = {}): Promise<void> {
           GOARCH: goarch,
         };
         if (target.cc) targetEnv.CC = target.cc;
+        const useOverride = !(isDev && !options.target);
+        const compiler = useOverride ? (target.compiler ?? defaultCompiler) : 'go';
+        const compilerArgs = useOverride ? (target.compilerArgs ?? defaultCompilerArgs) : [];
         const cgoLabel = targetCgoEnabled === '1' ? ' [CGO]' : '';
-        log.info(`  Building ${pluginName}-${key}${ext}${cgoLabel}...`);
+        const compilerLabel = compiler !== 'go' ? ` [${compiler}]` : '';
+        log.info(`  Building ${pluginName}-${key}${ext}${cgoLabel}${compilerLabel}...`);
         try {
           // execFileSync (no shell) avoids cross-platform quoting headaches —
           // PowerShell on Windows doesn't strip single quotes, so a shell-style
           // `-ldflags '-s -w …'` would land at `go build` with the quotes
           // intact and fail. Passing args as an array side-steps shell parsing
           // entirely.
-          execFileSync('go', ['build', '-ldflags', targetLdflags, '-o', outputPath, './src/'], {
+          execFileSync(compiler, [...compilerArgs, 'build', '-ldflags', targetLdflags, '-o', outputPath, './src/'], {
             cwd: rootDir,
             stdio: 'pipe',
             env: { ...process.env, ...targetEnv },

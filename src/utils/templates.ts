@@ -117,9 +117,9 @@ export async function createPackageJson(projectName: string, options: CreateOpti
       // prettier-ignore
       // eslint-disable-next-line @stylistic/max-len
       "node -e \"if(!process.env.SAFE_PUBLISH){console.error('Error: Please use @camera.ui/cli to publish the plugin:\\n  npm run publish:alpha\\n  npm run publish:beta\\n  npm run publish:latest\\n');process.exit(1)}\"",
-    'publish:alpha': 'npm i --save && npm run bundle && cui publish --alpha',
-    'publish:beta': 'npm i --save && npm run bundle && cui publish --beta',
-    'publish:latest': 'npm i --save && npm run bundle && cui publish --latest',
+    'publish:alpha': 'npm i --save --force && npm run bundle && cui publish --alpha',
+    'publish:beta': 'npm i --save --force && npm run bundle && cui publish --beta',
+    'publish:latest': 'npm i --save --force && npm run bundle && cui publish --latest',
   };
 
   if (options.language === 'typescript') {

@@ -49,5 +49,5 @@ jobs:
 
       - name: Publish to npm
         run: |
-          npm install -g npm@latest
+          npm install -g npm@11.18.0
           npm publish --provenance --access public

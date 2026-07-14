@@ -64,6 +64,7 @@ function validatePlatformDeclaration(packageJson: Record<string, unknown>): void
     const value = packageJson[field];
 
     if (value === undefined) {
+      // prettier-ignore
       throw new Error(
         `package.json is missing the "${field}" field. Declare the supported platforms explicitly, ` +
         `e.g. "${field}": ${JSON.stringify(valid)} — or "${field}": [] if every platform is supported.`,
@@ -149,6 +150,7 @@ export async function stagePlatformPackages(args: StagePlatformPackagesArgs): Pr
       main: targetBinaryName,
       files: [targetBinaryName],
       license: args.packageJson.license ?? 'MIT',
+      ...(args.packageJson.repository ? { repository: args.packageJson.repository } : {}),
     };
 
     await writeFile(resolve(platformDir, 'package.json'), JSON.stringify(platformPkg, null, 2));

@@ -23,28 +23,33 @@ import { ensureDir } from '../utils/utils.js';
 
 import type { CreateOptions, PluginLanguage, PluginRole } from '../types.js';
 
-/**
- * Sensor options for the CLI prompts.
- *
- * Note: This list should stay in sync with the SDK's SensorType enum.
- * When adding new sensor types to the SDK, update this list accordingly.
- */
-const SENSOR_OPTIONS: { value: SensorType; label: string }[] = [
-  { value: SensorType.Motion, label: 'Motion Detection' },
-  { value: SensorType.Object, label: 'Object Detection' },
-  { value: SensorType.Audio, label: 'Audio Detection' },
-  { value: SensorType.Face, label: 'Face Detection' },
-  { value: SensorType.LicensePlate, label: 'License Plate' },
-  { value: SensorType.Contact, label: 'Contact Sensor' },
-  { value: SensorType.Classifier, label: 'Classifier' },
-  { value: SensorType.Light, label: 'Light Control' },
-  { value: SensorType.Siren, label: 'Siren Control' },
-  { value: SensorType.Switch, label: 'Switch Control' },
-  { value: SensorType.PTZ, label: 'PTZ Control' },
-  { value: SensorType.SecuritySystem, label: 'Security System' },
-  { value: SensorType.Doorbell, label: 'Doorbell' },
-  { value: SensorType.Battery, label: 'Battery' },
-];
+// A new SensorType fails to compile until it gets a label here
+const SENSOR_LABELS: Record<SensorType, string> = {
+  [SensorType.Motion]: 'Motion Detection',
+  [SensorType.Object]: 'Object Detection',
+  [SensorType.Audio]: 'Audio Detection',
+  [SensorType.Face]: 'Face Detection',
+  [SensorType.LicensePlate]: 'License Plate',
+  [SensorType.Classifier]: 'Classifier',
+  [SensorType.Clip]: 'CLIP Embedding',
+  [SensorType.Contact]: 'Contact Sensor',
+  [SensorType.Occupancy]: 'Occupancy Sensor',
+  [SensorType.Smoke]: 'Smoke Sensor',
+  [SensorType.Leak]: 'Leak Sensor',
+  [SensorType.Doorbell]: 'Doorbell',
+  [SensorType.Temperature]: 'Temperature',
+  [SensorType.Humidity]: 'Humidity',
+  [SensorType.Battery]: 'Battery',
+  [SensorType.Light]: 'Light Control',
+  [SensorType.Siren]: 'Siren Control',
+  [SensorType.Switch]: 'Switch Control',
+  [SensorType.Lock]: 'Lock Control',
+  [SensorType.Garage]: 'Garage Control',
+  [SensorType.SecuritySystem]: 'Security System',
+  [SensorType.PTZ]: 'PTZ Control',
+};
+
+const SENSOR_OPTIONS: { value: SensorType; label: string }[] = Object.values(SensorType).map((value) => ({ value, label: SENSOR_LABELS[value] }));
 
 function handleCancel<T>(value: T | symbol): T {
   if (isCancel(value)) {

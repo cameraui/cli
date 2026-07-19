@@ -20,7 +20,7 @@
     "update": "updates --update ./ && npm run update:templates"
   },
   "dependencies": {
-    "@camera.ui/sdk": "~0.0.19",
+    "@camera.ui/sdk": "~0.0.25",
     "@clack/prompts": "^1.7.0",
     "adm-zip": "^0.6.0",
     "commander": "^15.0.0",
@@ -43,7 +43,7 @@
     "rimraf": "^6.1.3",
     "typescript": "5.9.3",
     "typescript-eslint": "^8.64.0",
-    "updates": "^17.18.2",
+    "updates": "^17.19.1",
     "vitest": "^4.1.10"
   },
   "author": "seydx (https://github.com/cameraui/cli)",

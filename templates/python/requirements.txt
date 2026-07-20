@@ -1,1 +1,1 @@
-camera-ui-sdk==1.1.10
+camera-ui-sdk==1.1.11

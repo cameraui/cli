@@ -23,8 +23,10 @@ import { ensureDir } from '../utils/utils.js';
 
 import type { CreateOptions, PluginLanguage, PluginRole } from '../types.js';
 
+type SelectableSensorType = Exclude<SensorType, SensorType.ObjectAssist>;
+
 // A new SensorType fails to compile until it gets a label here
-const SENSOR_LABELS: Record<SensorType, string> = {
+const SENSOR_LABELS: Record<SelectableSensorType, string> = {
   [SensorType.Motion]: 'Motion Detection',
   [SensorType.Object]: 'Object Detection',
   [SensorType.Audio]: 'Audio Detection',
@@ -49,7 +51,9 @@ const SENSOR_LABELS: Record<SensorType, string> = {
   [SensorType.PTZ]: 'PTZ Control',
 };
 
-const SENSOR_OPTIONS: { value: SensorType; label: string }[] = Object.values(SensorType).map((value) => ({ value, label: SENSOR_LABELS[value] }));
+const SENSOR_OPTIONS: { value: SensorType; label: string }[] = Object.values(SensorType)
+  .filter((value): value is SelectableSensorType => value !== SensorType.ObjectAssist)
+  .map((value) => ({ value, label: SENSOR_LABELS[value] }));
 
 function handleCancel<T>(value: T | symbol): T {
   if (isCancel(value)) {

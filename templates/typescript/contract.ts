@@ -27,10 +27,21 @@ export const contract: PluginContract = {
     // SensorType.Siren,      // Siren control
     // SensorType.Switch,     // Switch control
     // SensorType.SecuritySystem, // Security system
+    // SensorType.Occupancy,  // Occupancy/presence
+    // SensorType.Smoke,      // Smoke detector
+    // SensorType.Leak,       // Water leak detector
+    // SensorType.Temperature, // Temperature sensor
+    // SensorType.Humidity,   // Humidity sensor
+    // SensorType.Lock,       // Lock control
+    // SensorType.Garage,     // Garage door opener
   ],
 
-  // Sensors this plugin consumes from other plugins (empty if standalone)
+  // Sensor types this plugin consumes from other plugins. Only sensors of
+  // these types that the user exported are delivered to this plugin.
   consumes: [],
+
+  // Capability flags for host-invoked interfaces (detection, discovery, NVR, ...)
+  interfaces: [],
 };
 
 export default contract;

@@ -11,6 +11,13 @@ import type { CameraDevice, DeviceStorage, LightControl, LoggerService, MotionSe
  * - MotionSensor: External motion events (webhooks, ONVIF, etc.)
  * - LightControl: Controllable light with on/brightness
  *
+ * Sensors are entities of their own. There are two ways to register them:
+ * - camera.addSensor(sensor): the sensor belongs to this camera's hardware
+ *   (spotlight, siren, battery, ...). The assignment is locked, users cannot
+ *   re-assign it.
+ * - api.sensorManager.addSensor(sensor): standalone device (smart plug, hub,
+ *   imported smart-home device). The user assigns it to cameras in the UI.
+ *
  * The contract (provides/consumes) is defined in contract.ts.
  */
 export default class SamplePlugin extends BasePlugin {
@@ -99,6 +106,13 @@ export default class SamplePlugin extends BasePlugin {
    */
   private onFinishLaunching(): void {
     this.logger.log('Plugin started');
+
+    // Standalone sensors (not part of a camera's hardware) go through the
+    // sensor manager. Pass a nativeId so the host can reconcile the sensor
+    // across restarts:
+    //
+    // const plug = new SwitchControl('Smart Plug', { nativeId: 'plug-1' });
+    // await this.api.sensorManager.addSensor(plug);
   }
 
   /**

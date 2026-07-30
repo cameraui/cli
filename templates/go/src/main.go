@@ -35,6 +35,11 @@ func (p *{{pluginName}}Plugin) ConfigureCameras(cameras []*sdk.CameraDevice) err
 }
 
 // OnCameraAdded is called when a camera is added/assigned at runtime.
+//
+// Sensors that belong to this camera's hardware (spotlight, siren, battery)
+// are registered via camera.AddSensor: the assignment is locked to the camera.
+// Standalone devices (smart plugs, hubs) go through p.api.SensorManager.AddSensor
+// instead; the user assigns those to cameras in the UI.
 func (p *{{pluginName}}Plugin) OnCameraAdded(camera *sdk.CameraDevice) error {
 	p.logger.Log("Camera added:", camera.Name())
 	return nil

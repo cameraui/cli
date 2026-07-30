@@ -5,11 +5,18 @@ Demonstrates the camera.ui plugin architecture with sensors:
 - MotionSensor: External motion events (webhooks, ONVIF, etc.)
 - LightControl: Controllable light with on/brightness
 - ClassifierDetectorSensor: Multi-provider frame-based classification
+
+Sensors are entities of their own. There are two ways to register them:
+- camera.addSensor(sensor): the sensor belongs to this camera's hardware
+  (spotlight, siren, battery, ...). The assignment is locked, users cannot
+  re-assign it.
+- api.sensorManager.addSensor(sensor): standalone device (smart plug, hub,
+  imported smart-home device). The user assigns it to cameras in the UI.
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from camera_ui_sdk import (
     API_EVENT,
@@ -28,12 +35,6 @@ from camera_ui_sdk import (
     VideoFrameData,
 )
 
-if TYPE_CHECKING:
-    from camera_ui_sdk import SensorType
-
-
-# ============ MOTION SENSOR (External Events) ============
-
 
 class ExampleMotionSensor(MotionSensor):
     """
@@ -48,21 +49,35 @@ class ExampleMotionSensor(MotionSensor):
     For frame-based detection, extend MotionDetectorSensor instead.
     """
 
-    def __init__(self, name: str) -> None:
-        super().__init__(name)
+    def __init__(self, name: str, native_id: str | None = None) -> None:
+        # Pass a native_id (e.g. the upstream device id) so the host can
+        # reconcile this sensor across restarts. Without it, identity falls
+        # back to (type, name) and a rename creates a new sensor.
+        super().__init__(name, native_id=native_id)
+
+    def on_start(self) -> None:
+        """Called once the sensor is registered and its storage is ready.
+
+        Start pollers, subscriptions or timers here.
+        """
+
+    def on_stop(self) -> None:
+        """Counterpart of on_start: tear down whatever it started.
+
+        Runs on removal, plugin shutdown and cleanup.
+        """
 
     def trigger(self, detections: list[Detection] | None = None) -> None:
-        """Trigger motion from external event."""
-        self.detected = True
-        self.detections = detections or []
+        """Trigger motion from an external event.
+
+        Without explicit detections the SDK synthesizes a full-frame
+        'motion' detection.
+        """
+        self.reportDetections(True, detections)
 
     def reset(self) -> None:
         """Clear motion state."""
-        self.detected = False
-        self.detections = []
-
-
-# ============ LIGHT CONTROL ============
+        self.clearDetections()
 
 
 class ExampleLightControl(LightControl):
@@ -70,16 +85,15 @@ class ExampleLightControl(LightControl):
     Example light control sensor.
 
     Bidirectional control sensor - consumers can read and write state.
-    Implements setOn/setBrightness to handle state changes.
+    Override setOn/setOff/setBrightness to drive your hardware, then call
+    super() to sync the SDK state. For hardware-pushed updates (someone
+    flipped the physical switch), call super().setOn()/super().setOff() from
+    your event handler - that only syncs state.
     """
 
     def __init__(self, camera: CameraDevice, name: str = "Light") -> None:
         super().__init__(name)
         self._camera = camera
-
-        # Initialize state
-        self.on = False
-        self.brightness = 100
 
         # Log state changes
         self.onPropertyChanged.subscribe(
@@ -88,6 +102,10 @@ class ExampleLightControl(LightControl):
 
     @property
     def storage_schema(self) -> list[JsonSchema]:
+        """Storage schema for per-sensor configuration.
+
+        These settings are persisted and shown in the UI.
+        """
         return [
             {
                 "type": "number",
@@ -109,23 +127,26 @@ class ExampleLightControl(LightControl):
             },
         ]
 
-    async def setOn(self, value: bool) -> None:
-        """Called when consumer sets 'on' property."""
-        self._camera.logger.log(f"Light turned {'ON' if value else 'OFF'}")
-        self.on = value
+    async def setOn(self) -> None:
+        """Called when a consumer turns the light on."""
+        # TODO: Drive your hardware here, then sync the SDK state
+        self._camera.logger.log("Light turned ON")
+        await super().setOn()
 
         # Apply default brightness when turning on
-        if value and self.storage:
-            default_brightness = self.storage.values.get("defaultBrightness", 100)
-            self.brightness = default_brightness
+        await self.setBrightness(self.storage.values.get("defaultBrightness", 100))
+
+    async def setOff(self) -> None:
+        """Called when a consumer turns the light off."""
+        # TODO: Drive your hardware here, then sync the SDK state
+        self._camera.logger.log("Light turned OFF")
+        await super().setOff()
 
     async def setBrightness(self, value: int) -> None:
-        """Called when consumer sets 'brightness' property."""
+        """Called when a consumer sets the brightness."""
+        # TODO: Drive your hardware here, then sync the SDK state
         self._camera.logger.log(f"Light brightness: {value}%")
-        self.brightness = value
-
-
-# ============ CLASSIFIER (Multi-Provider Example) ============
+        await super().setBrightness(value)
 
 
 class ExampleClassifier(ClassifierDetectorSensor[dict[str, Any]]):
@@ -167,7 +188,6 @@ class ExampleClassifier(ClassifierDetectorSensor[dict[str, Any]]):
         Model specification.
 
         - input: Frame size and format expected by the model
-        - outputLabels: Labels this classifier can output
         - triggerLabels: Object labels that trigger classification
         """
         return {
@@ -180,54 +200,43 @@ class ExampleClassifier(ClassifierDetectorSensor[dict[str, Any]]):
             "triggerLabels": ["animal"],
         }
 
-    async def detectClassifications(
-        self,
-        frame: VideoFrameData,
-        triggerRegions: list[Detection] | None = None,  # noqa: ARG002
-    ) -> ClassifierResult:
+    async def detectClassifications(self, frames: list[VideoFrameData]) -> list[ClassifierResult]:
         """
-        Classify objects in a frame.
+        Classify frames in batch.
 
-        Called by DetectionCoordinator when triggerLabels are detected.
-        The frame is pre-scaled to modelSpec.input dimensions.
+        Called by the DetectionCoordinator when triggerLabels are detected.
+        Each frame is pre-scaled to modelSpec.input dimensions (normally a
+        trigger region cropped by the upstream object detector).
+        Must return exactly one ClassifierResult per input frame, in order.
         """
-        threshold = 0.5
-        if self.storage:
-            threshold = self.storage.values.get("confidenceThreshold", 0.5)
+        threshold = self.storage.values.get("confidenceThreshold", 0.5)
 
         # TODO: Implement your classification model here
-        # Example: Load TensorFlow model and run inference
+        # Example: Load a model in on_start() and run inference per frame
         #
-        # predictions = await self.model.classify(frame["data"])
-        # return {
-        #     "detected": len(predictions) > 0,
-        #     "detections": [
+        # results: list[ClassifierResult] = []
+        # for frame in frames:
+        #     predictions = await self.model.classify(frame["data"])
+        #     detections = [
         #         {
-        #             "label": p.label,
+        #             "label": "animal",
+        #             "attribute": p.label,
         #             "confidence": p.score,
-        #             "box": triggerRegions[0]["box"] if triggerRegions else {"x": 0, "y": 0, "width": 1, "height": 1},
+        #             "box": {"x": 0, "y": 0, "width": 1, "height": 1},
         #         }
         #         for p in predictions
-        #     ],
-        # }
+        #         if p.score >= threshold
+        #     ]
+        #     results.append({"detected": len(detections) > 0, "detections": detections})
+        # return results
 
-        self._camera.logger.debug(
-            f"Classifying frame {frame['width']}x{frame['height']}, threshold: {threshold}"
-        )
+        self._camera.logger.debug(f"Classifying {len(frames)} frame(s), threshold: {threshold}")
 
-        # Return empty result (placeholder)
-        return {
-            "detected": False,
-            "detections": [],
-        }
+        # Return one empty result per frame (placeholder)
+        return [{"detected": False, "detections": []} for _ in frames]
 
-    async def destroy(self) -> None:
-        """Cleanup when sensor is destroyed."""
-        # Release model resources if needed
-        pass
-
-
-# ============ PLUGIN ============
+    def on_stop(self) -> None:
+        """Release model resources when the sensor is removed."""
 
 
 class SamplePlugin(BasePlugin):
@@ -257,7 +266,7 @@ class SamplePlugin(BasePlugin):
         for camera in cameraDevices:
             await self._setup_camera(camera)
 
-    async def onCameraAdded(self, camera: CameraDevice, _sensor_type: SensorType | None = None) -> None:
+    async def onCameraAdded(self, camera: CameraDevice) -> None:
         """Called when a camera is selected for this plugin at runtime."""
         self.logger.log(f"Camera selected: {camera.name}")
         await self._setup_camera(camera)
@@ -284,7 +293,7 @@ class SamplePlugin(BasePlugin):
         del self.cameras[cameraId]
 
     async def _setup_camera(self, camera: CameraDevice) -> None:
-        """Set up sensors for a camera."""
+        """Set up camera-owned sensors. The assignment is locked to this camera."""
         if camera.id in self.cameras:
             return
 
@@ -309,6 +318,13 @@ class SamplePlugin(BasePlugin):
     def _on_finish_launching(self) -> None:
         """Called when the plugin has finished launching."""
         self.logger.log("Plugin started")
+
+        # Standalone sensors (not part of a camera's hardware) go through the
+        # sensor manager. Pass a native_id so the host can reconcile the
+        # sensor across restarts:
+        #
+        # plug = SwitchControl("Smart Plug", native_id="plug-1")
+        # await self.api.sensorManager.addSensor(plug)
 
     def _on_shutdown(self) -> None:
         """Called when camera.ui is shutting down."""

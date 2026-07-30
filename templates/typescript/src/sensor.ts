@@ -2,8 +2,6 @@ import { ClassifierDetectorSensor, LightControl, MotionSensor } from '@camera.ui
 
 import type { CameraDevice, ClassifierResult, Detection, JsonSchema, ModelSpec, VideoFrameData } from '@camera.ui/sdk';
 
-// ============ MOTION SENSOR (External Events) ============
-
 /**
  * Example Motion Sensor
  *
@@ -16,70 +14,62 @@ import type { CameraDevice, ClassifierResult, Detection, JsonSchema, ModelSpec, 
  * For frame-based detection, extend MotionDetectorSensor instead.
  */
 export class ExampleMotionSensor extends MotionSensor {
-  constructor(name: string) {
-    super(name);
+  /**
+   * Pass a nativeId (e.g. the upstream device id) so the host can reconcile
+   * this sensor across restarts. Without it, identity falls back to
+   * (type, name) and a rename creates a new sensor.
+   */
+  constructor(name: string, nativeId?: string) {
+    super(name, { nativeId });
   }
 
   /**
-   * Trigger motion from external event
+   * Called once the sensor is registered and its storage is ready.
+   * Start pollers, subscriptions or timers here.
    */
-  trigger(detections: Detection[] = []): void {
-    this.detected = true;
-    this.detections = detections;
+  protected override onStart(): void {
+    // Example: subscribe to your device's event stream
+  }
+
+  /**
+   * Counterpart of onStart: tear down whatever it started.
+   * Runs on removal, plugin shutdown and cleanup.
+   */
+  protected override onStop(): void {
+    // Example: unsubscribe / clear timers
+  }
+
+  /**
+   * Trigger motion from an external event.
+   * Without explicit detections the SDK synthesizes a full-frame 'motion' detection.
+   */
+  trigger(detections?: Detection[]): void {
+    this.reportDetections(true, detections);
   }
 
   /**
    * Clear motion state
    */
   reset(): void {
-    this.detected = false;
-    this.detections = [];
+    this.clearDetections();
   }
 }
-
-// ============ LIGHT CONTROL ============
 
 /**
  * Example Light Control
  *
  * Bidirectional control sensor - consumers can read and write state.
- * Implements setOn/setBrightness to handle state changes.
+ * Override setOn/setOff/setBrightness to drive your hardware, then call
+ * super to sync the SDK state. For hardware-pushed updates (someone flipped
+ * the physical switch), call super.setOn()/super.setOff() from your event
+ * handler - that only syncs state.
  */
 export class ExampleLightControl extends LightControl {
   private cameraDevice: CameraDevice;
 
-  /**
-   * Storage schema for per-sensor configuration
-   * These settings are persisted and shown in the UI.
-   */
-  schema: JsonSchema[] = [
-    {
-      type: 'number',
-      key: 'defaultBrightness',
-      title: 'Default Brightness',
-      description: 'Default brightness level (0-100)',
-      defaultValue: 100,
-      minimum: 0,
-      maximum: 100,
-      store: true,
-    },
-    {
-      type: 'boolean',
-      key: 'autoOff',
-      title: 'Auto-Off',
-      description: 'Automatically turn off after timeout',
-      defaultValue: false,
-      store: true,
-    },
-  ];
-
   constructor(camera: CameraDevice, name = 'Light') {
     super(name);
     this.cameraDevice = camera;
-
-    // Initialize state
-    this.on = false;
-    this.brightness = 100;
 
     // Log state changes
     this.onPropertyChanged.subscribe(({ property, value }) => {
@@ -88,29 +78,62 @@ export class ExampleLightControl extends LightControl {
   }
 
   /**
-   * Called when consumer sets 'on' property
+   * Storage schema for per-sensor configuration
+   * These settings are persisted and shown in the UI.
    */
-  async setOn(value: boolean): Promise<void> {
-    this.cameraDevice.logger.log(`Light turned ${value ? 'ON' : 'OFF'}`);
-    this.on = value;
-
-    // Apply default brightness when turning on
-    if (value && this.storage) {
-      const defaultBrightness = this.storage.values.defaultBrightness ?? 100;
-      this.brightness = defaultBrightness;
-    }
+  override get storageSchema(): JsonSchema[] {
+    return [
+      {
+        type: 'number',
+        key: 'defaultBrightness',
+        title: 'Default Brightness',
+        description: 'Default brightness level (0-100)',
+        defaultValue: 100,
+        minimum: 0,
+        maximum: 100,
+        store: true,
+      },
+      {
+        type: 'boolean',
+        key: 'autoOff',
+        title: 'Auto-Off',
+        description: 'Automatically turn off after timeout',
+        defaultValue: false,
+        store: true,
+      },
+    ];
   }
 
   /**
-   * Called when consumer sets 'brightness' property
+   * Called when a consumer turns the light on
    */
-  async setBrightness(value: number): Promise<void> {
+  override async setOn(): Promise<void> {
+    // TODO: Drive your hardware here, then sync the SDK state
+    this.cameraDevice.logger.log('Light turned ON');
+    await super.setOn();
+
+    // Apply default brightness when turning on
+    await this.setBrightness(this.storage.values.defaultBrightness ?? 100);
+  }
+
+  /**
+   * Called when a consumer turns the light off
+   */
+  override async setOff(): Promise<void> {
+    // TODO: Drive your hardware here, then sync the SDK state
+    this.cameraDevice.logger.log('Light turned OFF');
+    await super.setOff();
+  }
+
+  /**
+   * Called when a consumer sets the brightness
+   */
+  override async setBrightness(value: number): Promise<void> {
+    // TODO: Drive your hardware here, then sync the SDK state
     this.cameraDevice.logger.log(`Light brightness: ${value}%`);
-    this.brightness = value;
+    await super.setBrightness(value);
   }
 }
-
-// ============ CLASSIFIER (Multi-Provider Example) ============
 
 /**
  * Example Classifier Sensor
@@ -126,33 +149,34 @@ export class ExampleLightControl extends LightControl {
 export class ExampleClassifier extends ClassifierDetectorSensor {
   private cameraDevice: CameraDevice;
 
-  /**
-   * Schema for classifier configuration
-   */
-  schema: JsonSchema[] = [
-    {
-      type: 'number',
-      key: 'confidenceThreshold',
-      title: 'Confidence Threshold',
-      description: 'Minimum confidence for classifications (0-1)',
-      defaultValue: 0.5,
-      minimum: 0.1,
-      maximum: 1.0,
-      step: 0.05,
-      store: true,
-    },
-  ];
-
   constructor(camera: CameraDevice, name = 'Classifier') {
     super(name);
     this.cameraDevice = camera;
   }
 
   /**
+   * Schema for classifier configuration
+   */
+  override get storageSchema(): JsonSchema[] {
+    return [
+      {
+        type: 'number',
+        key: 'confidenceThreshold',
+        title: 'Confidence Threshold',
+        description: 'Minimum confidence for classifications (0-1)',
+        defaultValue: 0.5,
+        minimum: 0.1,
+        maximum: 1.0,
+        step: 0.05,
+        store: true,
+      },
+    ];
+  }
+
+  /**
    * Model specification
    *
    * - input: Frame size and format expected by the model
-   * - outputLabels: Labels this classifier can output
    * - triggerLabels: Object labels that trigger classification
    */
   get modelSpec(): ModelSpec {
@@ -168,40 +192,40 @@ export class ExampleClassifier extends ClassifierDetectorSensor {
   }
 
   /**
-   * Classify objects in a frame
+   * Classify frames in batch.
    *
-   * Called by DetectionCoordinator when triggerLabels are detected.
-   * The frame is pre-scaled to modelSpec.input dimensions.
+   * Called by the DetectionCoordinator when triggerLabels are detected.
+   * Each frame is pre-scaled to modelSpec.input dimensions (normally a
+   * trigger region cropped by the upstream object detector).
+   * Must return exactly one ClassifierResult per input frame, in order.
    */
-  async detectClassifications(frame: VideoFrameData, _triggerRegions?: Detection[]): Promise<ClassifierResult> {
-    const threshold = this.storage?.values.confidenceThreshold ?? 0.5;
+  async detectClassifications(frames: VideoFrameData[]): Promise<ClassifierResult[]> {
+    const threshold = this.storage.values.confidenceThreshold ?? 0.5;
 
     // TODO: Implement your classification model here
-    // Example: Load TensorFlow model and run inference
+    // Example: Load a model in onStart() and run inference per frame
     //
-    // const predictions = await this.model.classify(frame.data);
-    // return {
-    //   detected: predictions.length > 0,
-    //   detections: predictions.map(p => ({
-    //     label: p.label,
+    // return Promise.all(frames.map(async (frame) => {
+    //   const predictions = await this.model.classify(frame.data);
+    //   const detections = predictions.filter(p => p.score >= threshold).map(p => ({
+    //     label: 'animal',
+    //     attribute: p.label,
     //     confidence: p.score,
-    //     box: triggerRegions?.[0]?.box ?? { x: 0, y: 0, width: 1, height: 1 },
-    //   })),
-    // };
+    //     box: { x: 0, y: 0, width: 1, height: 1 },
+    //   }));
+    //   return { detected: detections.length > 0, detections };
+    // }));
 
-    this.cameraDevice.logger.debug(`Classifying frame ${frame.width}x${frame.height}, threshold: ${threshold}`);
+    this.cameraDevice.logger.debug(`Classifying ${frames.length} frame(s), threshold: ${threshold}`);
 
-    // Return empty result (placeholder)
-    return {
-      detected: false,
-      detections: [],
-    };
+    // Return one empty result per frame (placeholder)
+    return frames.map(() => ({ detected: false, detections: [] }));
   }
 
   /**
-   * Cleanup when sensor is destroyed
+   * Release model resources when the sensor is removed
    */
-  async destroy(): Promise<void> {
-    // Release model resources if needed
+  protected override onStop(): void {
+    // Example: this.model?.dispose()
   }
 }

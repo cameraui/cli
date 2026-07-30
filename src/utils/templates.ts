@@ -8,7 +8,8 @@ import { sortDependencies, sortScripts } from './sort.js';
 import { copyPath, ensureDir } from './utils.js';
 import { getLatestCameraUiVersion, getLatestNodeLTSVersion } from './versions.js';
 
-import type { SensorType } from '@camera.ui/sdk';
+import { SensorType } from '@camera.ui/sdk';
+
 import type { CreateOptions } from '../types.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -259,45 +260,40 @@ export async function createCodeQualityConfig(targetDir: string, options: Create
 function formatSensorTypesForTs(types: SensorType[]): string {
   if (types.length === 0) return '[]';
 
-  const sensorTypeMap: Record<string, string> = {
-    motion: 'Motion',
-    object: 'Object',
-    audio: 'Audio',
-    face: 'Face',
-    licensePlate: 'LicensePlate',
-    contact: 'Contact',
-    light: 'Light',
-    siren: 'Siren',
-    ptz: 'PTZ',
-    doorbell: 'Doorbell',
-    battery: 'Battery',
-  };
-
-  const formatted = types.map((t) => `SensorType.${sensorTypeMap[t] || t}`).join(', ');
+  const enumKeyByValue = new Map(Object.entries(SensorType).map(([key, value]) => [value, key]));
+  const formatted = types.map((t) => `SensorType.${enumKeyByValue.get(t) ?? t}`).join(', ');
   return `[${formatted}]`;
 }
 
 function generateContractTs(options: CreateOptions): string {
   const provides = formatSensorTypesForTs(options.provides);
   const consumes = formatSensorTypesForTs(options.consumes);
+  const role = options.role === 'consumer' ? 'PluginRole.Hub' : 'PluginRole.SensorProvider';
+  const sensorTypeImport = options.provides.length || options.consumes.length ? 'PluginRole, SensorType' : 'PluginRole';
+  const pythonVersion = options.language === 'python' && options.pythonVersion ? `\n  pythonVersion: '${options.pythonVersion}',` : '';
 
-  return `import { SensorType } from '@camera.ui/sdk';
+  return `import { ${sensorTypeImport} } from '@camera.ui/sdk';
 
 import type { PluginContract } from '@camera.ui/sdk';
 
 /**
  * Plugin Contract
  *
- * This file defines what sensor types your plugin provides and consumes.
- * It is bundled separately and read by camera.ui before loading the plugin.
+ * This file defines what your plugin does and needs. It is bundled separately
+ * and read by camera.ui before loading the plugin.
  *
+ * - role: what the plugin is (sensor provider, hub, camera controller)
  * - provides: Sensor types this plugin creates and controls
- * - consumes: Sensor types this plugin receives updates from (for hubs/integrations)
+ * - consumes: Sensor types this plugin receives updates from (for hubs/integrations).
+ *   Only sensors of these types that the user exported are delivered to the plugin.
+ * - interfaces: Capability flags for host-invoked interfaces (detection, discovery, NVR, ...)
  */
 export const contract: PluginContract = {
   name: '${options.displayName}',
+  role: ${role},
   provides: ${provides},
   consumes: ${consumes},
+  interfaces: [],${pythonVersion}
 };
 
 export default contract;

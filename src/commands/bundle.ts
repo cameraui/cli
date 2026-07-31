@@ -4,6 +4,7 @@ import * as esbuild from 'esbuild';
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { cp, mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
 import { arch, platform } from 'node:os';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -252,6 +253,17 @@ interface ProcessPackageJsonOptions {
   isDev?: boolean;
 }
 
+async function resolvePluginProtocolLevel(rootDir: string): Promise<number | undefined> {
+  try {
+    const pluginRequire = createRequire(resolve(rootDir, 'package.json'));
+    const sdk = await import(pathToFileURL(pluginRequire.resolve('@camera.ui/sdk')).href);
+    const level = (sdk as { PROTOCOL_LEVEL?: unknown }).PROTOCOL_LEVEL;
+    return typeof level === 'number' ? level : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 async function processPackageJson({ rootDir, outDir, external, pluginLanguage, goTargets, isDev }: ProcessPackageJsonOptions): Promise<void> {
   try {
     log.info('Processing package.json...');
@@ -259,6 +271,13 @@ async function processPackageJson({ rootDir, outDir, external, pluginLanguage, g
     const packageJsonPath = resolve(rootDir, 'package.json');
     const packageJsonContent = await readFile(packageJsonPath, 'utf-8');
     const packageJson = JSON.parse(packageJsonContent);
+
+    const protocolLevel = await resolvePluginProtocolLevel(rootDir);
+    if (protocolLevel !== undefined) {
+      packageJson.cameraui = { ...(packageJson.cameraui ?? {}), protocolLevel };
+    } else {
+      log.warn('Could not resolve the SDK protocol level, bundle stays unstamped');
+    }
 
     const mainFile = pluginLanguage === 'python' ? 'main.py' : pluginLanguage === 'go' ? 'main.go' : 'index.js';
     packageJson.main = pluginLanguage === 'go' ? './main.go' : `./dist/${mainFile}`;

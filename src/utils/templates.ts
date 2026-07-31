@@ -198,14 +198,6 @@ export async function createPackageJson(projectName: string, options: CreateOpti
   pJson.engines['camera.ui'] = `>=${latestCameraUiVersion.latest}`;
   pJson.engines.node = `>=${latestNodeVersion.version}`;
 
-  // contract
-  pJson['camera.ui'] = {
-    provides: options.provides,
-    consumes: options.consumes,
-    dependencies: [],
-    pythonVersion: options.pythonVersion,
-  };
-
   return sortDependencies(pJson);
 }
 

@@ -121,7 +121,6 @@ export async function artifactsCommand(options: ArtifactsOptions = {}): Promise<
     pluginName,
     packageScope,
     packageJson,
-    rootDir,
   });
 
   await finalizeBundle({

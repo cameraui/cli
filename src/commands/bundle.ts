@@ -108,15 +108,12 @@ export interface StagePlatformPackagesArgs {
   pluginName: string;
   packageScope?: string;
   packageJson: { version?: string; license?: string; [key: string]: unknown };
-  rootDir: string;
 }
 
 export async function stagePlatformPackages(args: StagePlatformPackagesArgs): Promise<void> {
   log.info('Staging platform packages...');
   const platformsDir = resolve(args.bundleDir, 'platforms');
   await ensureDir(platformsDir);
-
-  const optionalDeps: Record<string, string> = {};
 
   for (const target of args.targets) {
     const { goos, goarch } = target;
@@ -155,19 +152,11 @@ export async function stagePlatformPackages(args: StagePlatformPackagesArgs): Pr
     };
 
     await writeFile(resolve(platformDir, 'package.json'), JSON.stringify(platformPkg, null, 2));
-    optionalDeps[platformPkgName] = platformPkg.version;
   }
 
-  // Update plugin root package.json with optionalDependencies pointing at each
-  // platform sub-package. npm installs the matching one (os/cpu/libc) and the
-  // server resolves + runs its binary in place at spawn time — no install-time
-  // copy, so nothing relies on an npm lifecycle script (npm v12 disables those
-  // for dependencies by default).
-  const rootPkgPath = resolve(args.rootDir, 'package.json');
-  const rootPkgRaw = await readFile(rootPkgPath, 'utf-8');
-  const rootPkg = JSON.parse(rootPkgRaw) as { optionalDependencies?: Record<string, string> };
-  rootPkg.optionalDependencies = { ...(rootPkg.optionalDependencies ?? {}), ...optionalDeps };
-  await writeFile(rootPkgPath, `${JSON.stringify(rootPkg, null, 2)}\n`);
+  // The bundle's package.json gets its optionalDependencies from
+  // processPackageJson; the repo's own package.json stays untouched — pinning
+  // the not-yet-published platform versions there breaks `npm ci`.
 
   // Clean up the cross-compile staging dir; binaries now live in platforms/.
   await rm(args.binDir, { recursive: true, force: true });
@@ -607,7 +596,6 @@ export async function buildProject(options: BuildOptions = {}): Promise<void> {
           pluginName,
           packageScope,
           packageJson,
-          rootDir,
         });
       }
 

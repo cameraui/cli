@@ -38,9 +38,19 @@ const SENSOR_LABELS: Record<SelectableSensorType, string> = {
   [SensorType.Occupancy]: 'Occupancy Sensor',
   [SensorType.Smoke]: 'Smoke Sensor',
   [SensorType.Leak]: 'Leak Sensor',
+  [SensorType.Gas]: 'Gas Sensor',
+  [SensorType.CarbonMonoxide]: 'Carbon Monoxide Sensor',
+  [SensorType.Heat]: 'Heat Sensor',
+  [SensorType.Cold]: 'Cold Sensor',
+  [SensorType.Vibration]: 'Vibration Sensor',
+  [SensorType.Tamper]: 'Tamper Sensor',
+  [SensorType.Problem]: 'Problem Sensor',
+  [SensorType.Power]: 'Power Sensor',
   [SensorType.Doorbell]: 'Doorbell',
   [SensorType.Temperature]: 'Temperature',
   [SensorType.Humidity]: 'Humidity',
+  [SensorType.Illuminance]: 'Illuminance',
+  [SensorType.CarbonDioxide]: 'Carbon Dioxide',
   [SensorType.Battery]: 'Battery',
   [SensorType.Light]: 'Light Control',
   [SensorType.Siren]: 'Siren Control',
@@ -51,9 +61,12 @@ const SENSOR_LABELS: Record<SelectableSensorType, string> = {
   [SensorType.PTZ]: 'PTZ Control',
 };
 
-const SENSOR_OPTIONS: { value: SensorType; label: string }[] = Object.values(SensorType)
+type SensorOption = { [K in SelectableSensorType]: { value: K; label: string } }[SelectableSensorType];
+
+const SENSOR_OPTIONS = Object.values(SensorType)
   .filter((value): value is SelectableSensorType => value !== SensorType.ObjectAssist)
-  .map((value) => ({ value, label: SENSOR_LABELS[value] }));
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+  .map((value) => ({ value, label: SENSOR_LABELS[value] }) as SensorOption);
 
 function handleCancel<T>(value: T | symbol): T {
   if (isCancel(value)) {

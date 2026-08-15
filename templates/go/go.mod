@@ -2,4 +2,4 @@ module {{moduleName}}
 
 go 1.23.0
 
-require github.com/cameraui/sdk/go v1.2.29
+require github.com/cameraui/sdk/go v1.2.30

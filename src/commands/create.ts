@@ -65,7 +65,7 @@ type SensorOption = { [K in SelectableSensorType]: { value: K; label: string } }
 
 const SENSOR_OPTIONS = Object.values(SensorType)
   .filter((value): value is SelectableSensorType => value !== SensorType.ObjectAssist)
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+
   .map((value) => ({ value, label: SENSOR_LABELS[value] }) as SensorOption);
 
 function handleCancel<T>(value: T | symbol): T {

@@ -33,6 +33,8 @@ const SENSOR_LABELS: Record<SelectableSensorType, string> = {
   [SensorType.Audio]: 'Audio Detection',
   [SensorType.Face]: 'Face Detection',
   [SensorType.FaceEmbedder]: 'Face Recognition',
+  [SensorType.PersonEmbedder]: 'Person Re-ID',
+  [SensorType.Segmenter]: 'Segmentation',
   [SensorType.LicensePlate]: 'License Plate',
   [SensorType.Classifier]: 'Classifier',
   [SensorType.Clip]: 'CLIP Embedding',

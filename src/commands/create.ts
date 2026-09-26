@@ -1,5 +1,6 @@
 import { SensorType } from '@camera.ui/sdk';
 import { confirm, isCancel, multiselect, select, text } from '@clack/prompts';
+import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
@@ -80,6 +81,14 @@ function handleCancel<T>(value: T | typeof CANCEL_SYMBOL): T {
   return value;
 }
 
+function gitUserName(): string | undefined {
+  try {
+    return execFileSync('git', ['config', 'user.name'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim() || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function createProject(projectName: string) {
   showIntro();
 
@@ -127,6 +136,16 @@ export async function createProject(projectName: string) {
       defaultValue: transformDisplaName(projectName),
     }),
   );
+
+  const gitAuthor = gitUserName();
+  const author = handleCancel(
+    await text({
+      message: 'Author:',
+      placeholder: gitAuthor,
+      defaultValue: gitAuthor,
+      validate: (value) => (value?.trim() || gitAuthor ? undefined : 'Author is required'),
+    }),
+  ).trim();
 
   const language = handleCancel(
     await select({
@@ -199,6 +218,7 @@ export async function createProject(projectName: string) {
 
   const options: CreateOptions = {
     displayName,
+    author,
     language,
     pythonVersion,
     quality,

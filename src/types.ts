@@ -36,6 +36,7 @@ export type PluginRole = 'provider' | 'consumer' | 'both';
 
 export interface CreateOptions {
   displayName: string;
+  author: string;
   language: PluginLanguage;
   pythonVersion?: PythonVersion;
   quality: boolean;

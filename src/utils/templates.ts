@@ -89,10 +89,17 @@ export async function createBaseFiles(targetDir: string, projectName: string, op
     }
   }
 
-  const readmePath = resolve(targetDir, 'README.md');
-  const readmeContent = readFileSync(readmePath, 'utf-8').replace(/{{projectName}}/g, projectName);
+  const placeholders: Record<string, string> = {
+    projectName,
+    author: options.author,
+    year: String(new Date().getFullYear()),
+  };
 
-  await writeFile(readmePath, readmeContent);
+  for (const file of ['README.md', 'LICENSE.md']) {
+    const filePath = resolve(targetDir, file);
+    const content = readFileSync(filePath, 'utf-8').replace(/{{(\w+)}}/g, (match, key: string) => placeholders[key] ?? match);
+    await writeFile(filePath, content);
+  }
 
   await createVscodeSettings(targetDir, options);
 }

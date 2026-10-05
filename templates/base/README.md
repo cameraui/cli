@@ -8,7 +8,7 @@ A plugin for [camera.ui](https://github.com/cameraui/camera.ui) that allows you 
 
 ## Setup Development Environment
 
-1. Make sure you have [Node.js](https://nodejs.org) 20.x or later installed
+1. Make sure you have [Node.js](https://nodejs.org) 24.5 or later installed
 2. Install dependencies as described below
 
 ## Install Development Dependencies

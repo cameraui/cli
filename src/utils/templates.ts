@@ -3,10 +3,11 @@ import { writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { MIN_NODE_VERSION } from '../constants.js';
 import packageJson from '../utils/pjson.js';
 import { sortDependencies, sortScripts } from './sort.js';
 import { copyPath, ensureDir } from './utils.js';
-import { getLatestCameraUiVersion, getLatestNodeLTSVersion } from './versions.js';
+import { getLatestCameraUiVersion } from './versions.js';
 
 import { SensorType } from '@camera.ui/sdk';
 
@@ -200,10 +201,9 @@ export async function createPackageJson(projectName: string, options: CreateOpti
 
   // engines
   const latestCameraUiVersion = await getLatestCameraUiVersion();
-  const latestNodeVersion = await getLatestNodeLTSVersion();
 
   pJson.engines['camera.ui'] = `>=${latestCameraUiVersion.latest}`;
-  pJson.engines.node = `>=${latestNodeVersion.version}`;
+  pJson.engines.node = `>=${MIN_NODE_VERSION}`;
 
   return sortDependencies(pJson);
 }

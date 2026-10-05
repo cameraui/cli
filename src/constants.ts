@@ -1,6 +1,7 @@
 import { getLatestCameraUiVersion, getLatestNodeLTSVersion } from './utils/versions.js';
 
 export const NODE_LTS = '22.14.0';
+export const MIN_NODE_VERSION = '24.5.0';
 export const CAMERA_UI_LTS = '0.0.49';
 
 export async function getNodeLtsVersion(): Promise<string> {

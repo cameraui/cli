@@ -66,7 +66,7 @@ export async function createBaseFiles(targetDir: string, projectName: string, op
   const baseFiles = ['README.md', 'LICENSE.md', 'CONTRIBUTING.md', 'CHANGELOG.md', 'SECURITY.md', 'updates.config.js'];
   const baseDotFiles = ['gitignore', 'npmignore', 'editorconfig'];
 
-  // cameraui.config.ts is always TypeScript (even for Python plugins)
+  // python plugins get the TypeScript config too
   const configFiles: string[] = ['cameraui.config.ts'];
   const pythonFiles: string[] = ['cupdate.config.txt'];
 
@@ -78,12 +78,10 @@ export async function createBaseFiles(targetDir: string, projectName: string, op
     await copyPath(__dirname, `../../templates/base/${file}`, targetDir, `.${file}`);
   }
 
-  // Always copy TypeScript config file
   for (const file of configFiles) {
     await copyPath(__dirname, `../../templates/typescript/${file}`, targetDir, file);
   }
 
-  // Python-specific files
   if (options.language === 'python') {
     for (const file of pythonFiles) {
       await copyPath(__dirname, `../../templates/python/${file}`, targetDir, file);
@@ -109,14 +107,12 @@ export async function createPackageJson(projectName: string, options: CreateOpti
   const pJsonPath = resolve(join(__dirname, '../../templates/base/package.json'));
   const pJson = JSON.parse(readFileSync(pJsonPath, 'utf-8'));
 
-  // general
   pJson.displayName = options.displayName;
   pJson.name = projectName;
 
   const mainFile = options.language === 'python' ? 'main.py' : options.language === 'go' ? 'main.go' : 'index.js';
   pJson.main = options.language === 'go' ? './bundle/main.go' : `./bundle/dist/${mainFile}`;
 
-  // scripts
   pJson.scripts = {
     bundle: 'cui bundle',
     'bundle:dev': 'cross-env MODE=development cui bundle',
@@ -170,7 +166,7 @@ export async function createPackageJson(projectName: string, options: CreateOpti
 
   pJson.scripts = sortScripts(pJson);
 
-  // devDependencies - always include TypeScript (needed for contract.ts)
+  // every language needs TypeScript for contract.ts
   const tsPJsonPath = resolve(join(__dirname, '../../templates/typescript/package.json'));
   const tsPJson = JSON.parse(readFileSync(tsPJsonPath, 'utf-8'));
 
@@ -180,7 +176,6 @@ export async function createPackageJson(projectName: string, options: CreateOpti
     ...tsPJson,
   };
 
-  // Code quality tools (ESLint + Prettier for TypeScript only)
   if (options.quality && options.language === 'typescript') {
     const formatterPJsonPath = resolve(join(__dirname, '../../templates/base/package.prettier.json'));
     const formatterPJson = JSON.parse(readFileSync(formatterPJsonPath, 'utf-8'));
@@ -199,7 +194,6 @@ export async function createPackageJson(projectName: string, options: CreateOpti
     };
   }
 
-  // engines
   const latestCameraUiVersion = await getLatestCameraUiVersion();
 
   pJson.engines['camera.ui'] = `>=${latestCameraUiVersion.latest}`;
@@ -222,10 +216,8 @@ export async function createMyPyConfig(targetDir: string): Promise<void> {
 
 export async function createTsConfig(targetDir: string, options: CreateOptions): Promise<void> {
   if (options.language === 'typescript') {
-    // Full TypeScript config for TS projects
     await copyPath(__dirname, '../../templates/typescript/tsconfig.json', targetDir, 'tsconfig.json');
   } else {
-    // Minimal TypeScript config for Python projects (only needed for contract.ts)
     const minimalTsConfig = {
       compilerOptions: {
         target: 'ES2022',
@@ -246,10 +238,8 @@ export async function createTsConfig(targetDir: string, options: CreateOptions):
 
 export async function createCodeQualityConfig(targetDir: string, options: CreateOptions): Promise<void> {
   if (options.language === 'python') {
-    // Python: ruff for linting/formatting
     await copyPath(__dirname, '../../templates/python/ruff.toml', targetDir, 'ruff.toml');
   } else {
-    // TypeScript: ESLint + Prettier
     await copyPath(__dirname, '../../templates/base/prettierrc.json', targetDir, '.prettierrc.json');
     await copyPath(__dirname, '../../templates/base/prettierignore', targetDir, '.prettierignore');
     await copyPath(__dirname, '../../templates/typescript/eslint.config.js', targetDir, 'eslint.config.js');
@@ -299,18 +289,11 @@ export default contract;
 `;
 }
 
-/**
- * Create contract.ts at project root (always TypeScript, even for Python plugins)
- * This file is bundled to contract.js during the bundle process
- */
 export async function createContractFile(targetDir: string, options: CreateOptions): Promise<void> {
   const contractContent = generateContractTs(options);
   await writeFile(resolve(targetDir, 'contract.ts'), contractContent);
 }
 
-/**
- * Create source files in src/ directory (no contract files here)
- */
 export async function createSourceFiles(targetDir: string, options: CreateOptions): Promise<void> {
   const srcDir = resolve(targetDir, 'src');
   await ensureDir(srcDir);
@@ -318,17 +301,13 @@ export async function createSourceFiles(targetDir: string, options: CreateOption
   if (options.language === 'python') {
     await copyPath(__dirname, '../../templates/python/src/main.py', srcDir, 'main.py');
   } else if (options.language === 'go') {
-    // Go source files are created separately by createGoFiles
+    // createGoFiles writes them
   } else {
-    // TypeScript
     await copyPath(__dirname, '../../templates/typescript/src/index.ts', srcDir, 'index.ts');
     await copyPath(__dirname, '../../templates/typescript/src/sensor.ts', srcDir, 'sensor.ts');
   }
 }
 
-/**
- * Create Go source files for a new Go plugin project
- */
 export async function createGoFiles(targetDir: string, projectName: string): Promise<void> {
   const srcDir = resolve(targetDir, 'src');
   await ensureDir(srcDir);
@@ -336,12 +315,10 @@ export async function createGoFiles(targetDir: string, projectName: string): Pro
   const pluginName = projectName.replace(/^@[^/]+\//, '').replace(/-/g, '_');
   const moduleName = `github.com/user/${projectName.replace(/^@[^/]+\//, '')}`;
 
-  // go.mod — read template, replace placeholder, write to project root
   const goModTemplate = readFileSync(resolve(__dirname, '../../templates/go/go.mod'), 'utf-8');
   const goMod = goModTemplate.replace(/\{\{moduleName\}\}/g, moduleName);
   await writeFile(resolve(targetDir, 'go.mod'), goMod);
 
-  // main.go — read template, replace placeholder, write to src/
   const mainGoTemplate = readFileSync(resolve(__dirname, '../../templates/go/src/main.go'), 'utf-8');
   const mainGo = mainGoTemplate.replace(/\{\{pluginName\}\}/g, pluginName);
   await writeFile(resolve(srcDir, 'main.go'), mainGo);

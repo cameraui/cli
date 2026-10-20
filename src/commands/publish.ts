@@ -109,9 +109,7 @@ export async function publishProject(options: PublishOptions) {
   const { name, version } = pJson;
   const tag = options.alpha ? 'alpha' : options.beta ? 'beta' : options.latest ? 'latest' : 'latest';
 
-  // Non-interactive mode (CI): publish exactly the version baked into
-  // bundle/package.json — no prompts. The version is the single source of
-  // truth (set by the release tag), so there's nothing to confirm.
+  // CI: publish the version from bundle/package.json, the release tag already set it
   const targetVersion = options.yes
     ? version
     : handleCancel(
@@ -133,7 +131,6 @@ export async function publishProject(options: PublishOptions) {
     process.exit(1);
   }
 
-  // Validate version doesn't already exist
   const versionValid = await validateVersion(name, targetVersion);
   if (!versionValid) {
     process.exit(1);
@@ -161,12 +158,10 @@ export async function publishProject(options: PublishOptions) {
       log.info('Updating package version...');
       pJson.version = targetVersion;
 
-      // `--access public` is required for the first publish of a scoped
-      // package and harmless afterwards, so it's always passed. `--provenance`
-      // additionally emits an OIDC-signed provenance attestation (CI only).
+      // --access public is needed for the first publish of a scoped package, harmless afterwards
       const extraArgs = ['--access', 'public', ...(options.provenance ? ['--provenance'] : [])];
 
-      // Publish platform packages first
+      // platform packages go first, the main package lists them as optionalDependencies
       const platformsDir = resolve(process.cwd(), 'bundle', 'platforms');
       if (existsSync(platformsDir)) {
         const platformDirs = readdirSync(platformsDir, { withFileTypes: true })
@@ -182,7 +177,6 @@ export async function publishProject(options: PublishOptions) {
             const platformPkgContent = await readFile(platformPkgPath, 'utf-8');
             const platformPkg = JSON.parse(platformPkgContent);
 
-            // Update version to match target version
             platformPkg.version = targetVersion;
             await writeFile(platformPkgPath, JSON.stringify(platformPkg, null, 2));
 
@@ -192,7 +186,6 @@ export async function publishProject(options: PublishOptions) {
             log.success(`  Published ${platformPkg.name}@${targetVersion}`);
           }
 
-          // Update optionalDependencies versions in main package
           if (pJson.optionalDependencies) {
             for (const dep of Object.keys(pJson.optionalDependencies)) {
               pJson.optionalDependencies[dep] = targetVersion;

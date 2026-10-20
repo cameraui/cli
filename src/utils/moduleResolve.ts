@@ -24,7 +24,6 @@ export class ModuleResolver {
   }
 
   public async resolveModule(modulePath: string, options: ModuleResolutionPaths & { silent?: boolean } = {}): Promise<string> {
-    // If path is absolute, just check if it exists
     if (isAbsolute(modulePath)) {
       if (await pathExists(modulePath)) {
         return modulePath;
@@ -93,20 +92,16 @@ export class ModuleResolver {
 
     const paths: string[] = [];
 
-    // Add custom paths first
     paths.push(...customPaths.map((p) => resolve(p)));
 
-    // Add local node_modules (when installed as dependency)
     if (includeLocalModules) {
       paths.push(resolve(this.cwd, 'node_modules'));
     }
 
-    // Add CLI package node_modules
     if (includeCliModules) {
       paths.push(resolve(this.cliRoot, 'node_modules'));
     }
 
-    // Add global node_modules
     if (includeGlobalModules) {
       if (process.platform === 'win32') {
         paths.push(resolve(this.globalRoot, 'node_modules'));

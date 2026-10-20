@@ -36,11 +36,11 @@ function nodeArchToGoarch(a: string): string {
 }
 
 function goosToNpmOs(g: string): string {
-  return g === 'windows' ? 'win32' : g; // 'linux'/'darwin' map through unchanged
+  return g === 'windows' ? 'win32' : g;
 }
 
 function goarchToNpmCpu(g: string): string {
-  return g === 'amd64' ? 'x64' : g; // 'arm64' is the same in both
+  return g === 'amd64' ? 'x64' : g;
 }
 
 function targetLibc(t: Pick<GoTarget, 'goos' | 'libc'>): 'glibc' | 'musl' | undefined {
@@ -55,15 +55,11 @@ export function targetKey(t: Pick<GoTarget, 'goos' | 'goarch' | 'libc'>): string
 const VALID_NPM_OS = ['darwin', 'linux', 'win32'];
 const VALID_NPM_CPU = ['x64', 'arm64'];
 
-// Every plugin must make an explicit platform statement in its package.json:
-// npm-standard `os`/`cpu` arrays (values may be negated with a leading "!"),
-// with an EMPTY array meaning "all platforms". Absent fields are rejected so
-// plugin authors can't skip the question by accident — camera.ui uses the
-// declaration to gate local starts and remote-worker placement.
 function validatePlatformDeclaration(packageJson: Record<string, unknown>): void {
   const check = (field: 'os' | 'cpu', valid: string[]) => {
     const value = packageJson[field];
 
+    // required on purpose, camera.ui gates local starts and worker placement on it
     if (value === undefined) {
       // prettier-ignore
       throw new Error(
@@ -92,8 +88,7 @@ function resolveGoTargets(mode: string | undefined, goOpts?: GoBuildOptions): Go
   if (mode === 'development') {
     const hostGoos = nodeOsToGoos(platform()) as GoTarget['goos'];
     const hostGoarch = nodeArchToGoarch(arch()) as GoTarget['goarch'];
-    // If the plugin explicitly configured targets, pick the host's settings
-    // (cgoEnabled / cc) from there — same iteration semantics as production.
+    // configured targets carry the host's cgoEnabled and cc
     const matched = goOpts?.targets?.find((t) => t.goos === hostGoos && t.goarch === hostGoarch);
     return [matched ?? { goos: hostGoos, goarch: hostGoarch }];
   }
@@ -142,8 +137,7 @@ export async function stagePlatformPackages(args: StagePlatformPackagesArgs): Pr
       version: args.packageJson.version ?? '0.0.1',
       os: [goosToNpmOs(goos)],
       cpu: [goarchToNpmCpu(goarch)],
-      // `libc` lets npm skip a glibc build on musl systems (e.g. Alpine) and
-      // vice versa — without it npm would install a binary that can't exec.
+      // without libc npm would install a glibc binary on musl systems that can't exec
       ...(libc ? { libc: [libc] } : {}),
       main: targetBinaryName,
       files: [targetBinaryName],
@@ -154,11 +148,8 @@ export async function stagePlatformPackages(args: StagePlatformPackagesArgs): Pr
     await writeFile(resolve(platformDir, 'package.json'), JSON.stringify(platformPkg, null, 2));
   }
 
-  // The bundle's package.json gets its optionalDependencies from
-  // processPackageJson; the repo's own package.json stays untouched — pinning
-  // the not-yet-published platform versions there breaks `npm ci`.
+  // optionalDependencies go into the bundle's package.json only, pinning them in the repo breaks npm ci
 
-  // Clean up the cross-compile staging dir; binaries now live in platforms/.
   await rm(args.binDir, { recursive: true, force: true });
 
   log.success(`Staged ${args.targets.length} platform package(s)`);
@@ -225,7 +216,7 @@ async function stripPlatformPythonRequirements(bundleDir: string): Promise<void>
     if (!trimmed || trimmed.startsWith('#')) {
       return true;
     }
-    // Package name is everything before a version specifier, extras, or marker.
+    // the name ends at a version specifier, extras or marker
     const name = trimmed.split(/[=<>!~;[ ]/)[0];
     return !isPlatformPackagePython(name);
   });
@@ -271,8 +262,6 @@ async function processPackageJson({ rootDir, outDir, external, pluginLanguage, g
     const mainFile = pluginLanguage === 'python' ? 'main.py' : pluginLanguage === 'go' ? 'main.go' : 'index.js';
     packageJson.main = pluginLanguage === 'go' ? './main.go' : `./dist/${mainFile}`;
 
-    // Go plugins: derive the npm platform declaration from the build targets —
-    // they ARE the truth about where the plugin can run.
     if (pluginLanguage === 'go' && goTargets?.length) {
       packageJson.os ??= [...new Set(goTargets.map((t) => goosToNpmOs(t.goos)))];
       packageJson.cpu ??= [...new Set(goTargets.map((t) => goarchToNpmCpu(t.goarch)))];
@@ -322,7 +311,6 @@ async function processPackageJson({ rootDir, outDir, external, pluginLanguage, g
       }
     }
 
-    // Go production: inject optionalDependencies and postinstall script
     if (pluginLanguage === 'go' && goTargets?.length && !isDev) {
       const pluginName = (packageJson.name as string).replace(/^@[^/]+\//, '');
       const packageScope = (packageJson.name as string).includes('/') ? (packageJson.name as string).split('/')[0] : undefined;
@@ -338,12 +326,7 @@ async function processPackageJson({ rootDir, outDir, external, pluginLanguage, g
       packageJson.optionalDependencies = optionalDeps;
     }
 
-    // Lean main package: the server only needs bundle.zip (it extracts it on
-    // install). This keeps the platform binaries staged under bundle/platforms/
-    // out of the main tarball — each ships in its own platform package via
-    // optionalDependencies instead of being duplicated into every install.
-    // package.json/README/LICENSE are auto-included by npm; CHANGELOG isn't, so
-    // it's listed explicitly to keep it on the npm page.
+    // the server only extracts bundle.zip, CHANGELOG is listed so npm shows it
     packageJson.files = ['bundle.zip', 'CHANGELOG.md'];
 
     const targetPath = resolve(outDir, 'package.json');
@@ -406,7 +389,6 @@ export interface FinalizeBundleArgs {
 export async function finalizeBundle(args: FinalizeBundleArgs): Promise<void> {
   const { targetRootDir, bundleDir, rootDir, pluginLanguage, external, additionalFiles, goTargets, isDev } = args;
 
-  // Bundle contract.ts (always at root level, required for all plugins)
   const contractInput = resolve(targetRootDir, 'contract.ts');
 
   if (!existsSync(contractInput)) {
@@ -415,8 +397,7 @@ export async function finalizeBundle(args: FinalizeBundleArgs): Promise<void> {
 
   log.info('Bundling contract...');
 
-  // Bundle contract with esbuild - no externals, enum values are inlined
-  // Use .cjs extension to ensure Node.js treats it as CommonJS regardless of package.json "type"
+  // .cjs so Node loads it as CommonJS whatever the package.json type
   await esbuild.build({
     entryPoints: [contractInput],
     bundle: true,
@@ -425,12 +406,11 @@ export async function finalizeBundle(args: FinalizeBundleArgs): Promise<void> {
     format: 'cjs',
     outfile: resolve(bundleDir, 'contract.cjs'),
     sourcemap: isDev,
-    minify: false, // Keep contract readable for debugging
+    minify: false,
     logLevel: 'warning',
   });
   log.success('Contract bundled');
 
-  // Validate contract
   log.info('Validating contract...');
   const contractPath = resolve(bundleDir, 'contract.cjs');
   const contractModule = await import(pathToFileURL(contractPath).href);
@@ -495,7 +475,6 @@ export async function buildProject(options: BuildOptions = {}): Promise<void> {
 
   try {
     if (pluginLanguage === 'go') {
-      // Go: cross-compile binaries
       await ensureDir(bundleDir);
       const binDir = resolve(bundleDir, 'dist', 'bin');
       await ensureDir(binDir);
@@ -511,13 +490,7 @@ export async function buildProject(options: BuildOptions = {}): Promise<void> {
       const goOpts = userConfig.go;
       let targets = resolveGoTargets(userConfig.mode, goOpts);
 
-      // --target restricts the build to a single configured platform. The
-      // per-platform packaging step (writing `bundle/platforms/...`) is also
-      // skipped — that's the `artifacts` command's job once all matrix jobs
-      // have uploaded their respective binaries.
       if (options.target) {
-        // The --target value is a canonical target key: <goos>-<goarch> or, for
-        // musl linux builds, <goos>-<goarch>-musl (e.g. linux-amd64-musl).
         const match = targets.find((t) => targetKey(t) === options.target);
         if (!match) {
           const available = targets.map((t) => targetKey(t)).join(', ');
@@ -539,18 +512,9 @@ export async function buildProject(options: BuildOptions = {}): Promise<void> {
         const { goos, goarch } = target;
         const key = targetKey(target);
         const ext = goos === 'windows' ? '.exe' : '';
-        // Naming:
-        //  - dev mode (no --target): unsuffixed `plugin` for direct local run
-        //  - --target / production: `<pluginName>-<key>[.exe]` (key encodes the
-        //    target incl. a -musl suffix) so matrix runners can upload an
-        //    artifact whose name encodes the target, and the `artifacts`
-        //    command can match it back
+        // the target in the name lets cui artifacts match uploaded binaries back
         const outputName = isDev && !options.target ? `plugin${ext}` : `${pluginName}-${key}${ext}`;
         const outputPath = resolve(binDir, outputName);
-        // Per-target CGo + CC overrides — `cameraui.config.ts` can opt in
-        // CGo only for the platforms that need it (e.g. darwin Foundation
-        // framework bindings) without dragging Linux/Windows builds into a
-        // C cross-compile setup.
         const targetCgoEnabled = target.cgoEnabled ?? defaultCgoEnabled;
         const targetLdflags = target.ldflags ?? defaultLdflags;
         const targetEnv: Record<string, string> = {
@@ -567,11 +531,7 @@ export async function buildProject(options: BuildOptions = {}): Promise<void> {
         const compilerLabel = compiler !== 'go' ? ` [${compiler}]` : '';
         log.info(`  Building ${pluginName}-${key}${ext}${cgoLabel}${compilerLabel}...`);
         try {
-          // execFileSync (no shell) avoids cross-platform quoting headaches —
-          // PowerShell on Windows doesn't strip single quotes, so a shell-style
-          // `-ldflags '-s -w …'` would land at `go build` with the quotes
-          // intact and fail. Passing args as an array side-steps shell parsing
-          // entirely.
+          // no shell: PowerShell keeps the quotes of -ldflags '-s -w'
           execFileSync(compiler, [...compilerArgs, 'build', '-ldflags', targetLdflags, '-o', outputPath, './src/'], {
             cwd: rootDir,
             stdio: 'pipe',
@@ -584,10 +544,7 @@ export async function buildProject(options: BuildOptions = {}): Promise<void> {
         }
       }
 
-      // Production multi-target build: generate per-platform npm packages.
-      // Skipped in single-target (--target) mode — each matrix job just emits
-      // its binary into bundle/dist/bin/ for the `artifacts` command to pick
-      // up later in the publish stage.
+      // with --target, cui artifacts stages the platform packages later
       if (!isDev && !options.target) {
         await stagePlatformPackages({
           targets,
@@ -601,11 +558,7 @@ export async function buildProject(options: BuildOptions = {}): Promise<void> {
 
       log.success('Go plugin compiled');
 
-      // --target single-target mode (matrix CI): the only output we need
-      // is the platform-suffixed binary at `bundle/dist/bin/`. Skip the
-      // contract bundle, README copy, package.json rewrite, and zip — those
-      // are the publish-stage's job, where `cui artifacts` aggregates one
-      // binary per matrix runner into the final per-platform packages.
+      // a matrix job only emits its binary, the publish stage bundles the rest
       if (options.target) {
         const duration = Date.now() - startTime;
         log.buildSuccess(bundleDir, duration);
@@ -613,26 +566,20 @@ export async function buildProject(options: BuildOptions = {}): Promise<void> {
         return;
       }
     } else if (pluginLanguage === 'python') {
-      // Python: copy source files to dist/
       await ensureDir(bundleDir);
       await copyPath(rootDir, 'src', bundleDir, 'dist');
     } else {
-      // TypeScript/JavaScript: bundle with esbuild
-      // esbuild handles CJS/ESM interop much better than Rollup for export * re-exports
       log.info('Bundling plugin...');
 
-      // Build external list: host-provided platform packages + user externals.
-      // Platform packages are resolved from the host at runtime
-      // via NODE_PATH, never bundled.
+      // platform packages come from the host via NODE_PATH, never bundled
       const externals: string[] = [...PLATFORM_PACKAGES_NODE];
 
-      // Add user-defined externals (convert RegExp to string patterns for esbuild)
       if (userConfig.external) {
         for (const ext of userConfig.external) {
           if (typeof ext === 'string') {
             externals.push(ext);
           }
-          // Note: esbuild doesn't support RegExp externals, skip them
+          // esbuild has no RegExp externals
         }
       }
 
@@ -649,19 +596,15 @@ export async function buildProject(options: BuildOptions = {}): Promise<void> {
         treeShaking: userConfig.mode !== 'development',
         external: externals,
         logLevel: 'warning',
-        // Handle native .node modules and packages with native bindings
         plugins: [
           {
             name: 'native-node-modules',
             setup(build) {
-              // Mark all .node files as external
               build.onResolve({ filter: /\.node$/ }, (args) => ({
                 path: args.path,
                 external: true,
               }));
 
-              // Mark common native module packages as external
-              // These patterns match packages that typically contain native bindings
               const nativePackagePatterns = [/^@camera\.ui\/rust-/, /^@napi-rs\//, /-darwin-/, /-linux-/, /-win32-/, /-arm64$/, /-x64$/];
 
               build.onResolve({ filter: /.*/ }, (args) => {

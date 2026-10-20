@@ -27,7 +27,7 @@ import type { CreateOptions, PluginLanguage, PluginRole } from '../types.js';
 
 type SelectableSensorType = Exclude<SensorType, SensorType.ObjectAssist>;
 
-// A new SensorType fails to compile until it gets a label here
+// a new SensorType fails to compile until it gets a label here
 const SENSOR_LABELS: Record<SelectableSensorType, string> = {
   [SensorType.Motion]: 'Motion Detection',
   [SensorType.Object]: 'Object Detection',
@@ -181,7 +181,6 @@ export async function createProject(projectName: string) {
           }),
         );
 
-  // Plugin role determines which sensor type questions to ask
   const role = handleCancel(
     await select({
       message: "What is your plugin's role?",
@@ -238,11 +237,10 @@ export async function createProject(projectName: string) {
     await writeFile(resolve(targetDir, 'package.json'), JSON.stringify(packageJson, null, 2));
     log.success('Created package.json');
 
-    // Always create tsconfig.json (needed for contract.ts compilation)
+    // every language needs it to compile contract.ts
     await createTsConfig(targetDir, options);
     log.success('Created tsconfig.json');
 
-    // Always create contract.ts at root level
     await createContractFile(targetDir, options);
     log.success('Created contract.ts');
 

@@ -35,7 +35,6 @@ export async function detectLanguage(rootDir: string): Promise<PluginLanguage> {
   try {
     const srcDir = resolve(rootDir, 'src');
 
-    // Check for Go
     const hasGoMod = await findFile(rootDir, { target: 'go.mod', pattern: /^go\.mod$/ });
     const hasMainGo = await findFile(srcDir, { target: 'main.go', pattern: /^main\.go$/ });
     if (hasGoMod || hasMainGo) return 'go';
@@ -54,7 +53,6 @@ export async function detectLanguage(rootDir: string): Promise<PluginLanguage> {
       return 'python';
     }
 
-    // Default to TypeScript (JavaScript is no longer supported)
     return 'typescript';
   } catch {
     return 'typescript';

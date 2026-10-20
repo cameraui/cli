@@ -21,8 +21,7 @@ export interface DiscoveredBinary {
 
 async function discoverBinaries(artifactsDir: string, pluginName: string, knownTargets: GoTarget[]): Promise<DiscoveredBinary[]> {
   const found: DiscoveredBinary[] = [];
-  // Map each canonical key (incl. -musl) back to its target so we recover the
-  // full target (libc and all) instead of re-parsing the name.
+  // recover the full target (libc and all) by key instead of re-parsing the name
   const byKey = new Map(knownTargets.map((t) => [targetKey(t), t]));
 
   async function walk(dir: string): Promise<void> {
@@ -33,8 +32,7 @@ async function discoverBinaries(artifactsDir: string, pluginName: string, knownT
         await walk(fullPath);
         continue;
       }
-      // Match `<pluginName>-<key>` or `<pluginName>-<key>.exe`, where key is
-      // `<goos>-<goarch>[-musl]`.
+      // <pluginName>-<goos>-<goarch>[-musl][.exe]
       const stripped = entry.name.endsWith('.exe') ? entry.name.slice(0, -4) : entry.name;
       const prefix = `${pluginName}-`;
       if (!stripped.startsWith(prefix)) continue;
@@ -76,9 +74,7 @@ export async function artifactsCommand(options: ArtifactsOptions = {}): Promise<
   const pluginName = packageJson.name.replace(/^@[^/]+\//, '');
   const packageScope = packageJson.name.includes('/') ? packageJson.name.split('/')[0] : undefined;
 
-  // The plugin's configured targets are the source of truth for which
-  // platforms it ships. If a binary for an unconfigured target shows up in
-  // the artifacts dir, it's silently skipped (operator error or stale CI run).
+  // configured targets decide what ships, binaries for other targets are skipped
   const goOpts = userConfig.go;
   const knownTargets = goOpts?.targets ?? [];
   if (knownTargets.length === 0) {
@@ -100,9 +96,6 @@ export async function artifactsCommand(options: ArtifactsOptions = {}): Promise<
     throw new Error('Some target binaries are missing — refusing to ship a partial bundle.');
   }
 
-  // Stage binaries into bundle/dist/bin/ with the canonical naming convention
-  // `<pluginName>-<key>[.exe]`, then hand off to the same staging routine that
-  // the multi-target build uses.
   const bundleDir = resolve(targetRootDir, 'bundle');
   const binDir = resolve(bundleDir, 'dist', 'bin');
   await ensureDir(binDir);

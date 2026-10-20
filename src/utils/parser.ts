@@ -77,7 +77,6 @@ export async function parseConfig(): Promise<ParsedConfig> {
   const outputDir = resolve(targetRootDir, 'bundle', 'dist');
   const isTypeScript = projectType.startsWith('typescript');
 
-  // Determine entry point
   let entryPoint: string;
   if (typeof userConfig.input === 'string') {
     entryPoint = resolve(targetRootDir, userConfig.input);

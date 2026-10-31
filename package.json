@@ -17,7 +17,7 @@
     "release": "bash scripts/release.sh",
     "test": "vitest run",
     "update:templates": "node scripts/update-templates.mjs",
-    "update": "updates -M npm,pypi,go,cargo,docker,make --update ./ && npm run update:templates"
+    "update": "updates -M npm,pypi,go,cargo,docker --update ./ && npm run update:templates"
   },
   "dependencies": {
     "@camera.ui/sdk": "~1.4.4",

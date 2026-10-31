@@ -20,7 +20,7 @@
     "update": "updates -M npm,pypi,go,cargo,docker --update ./ && npm run update:templates"
   },
   "dependencies": {
-    "@camera.ui/sdk": "~1.4.4",
+    "@camera.ui/sdk": "~1.4.5",
     "@clack/prompts": "^1.8.1",
     "adm-zip": "^0.6.1",
     "commander": "^15.0.0",

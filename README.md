@@ -7,4 +7,4 @@ The camera.ui CLI — scaffold, build and publish camera.ui plugins.
 
 ---
 
-*Part of the camera.ui ecosystem - A comprehensive camera management solution.*
+*Part of camera.ui, the local-first camera and NVR platform.*

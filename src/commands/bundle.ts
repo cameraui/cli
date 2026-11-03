@@ -11,6 +11,7 @@ import { pathToFileURL } from 'node:url';
 
 import { isPlatformPackageNode, isPlatformPackagePython, PLATFORM_PACKAGES_NODE } from '../platform-packages.js';
 import { showIntro, showOutro } from '../utils/banners.js';
+import { importMetaOptions } from '../utils/importMeta.js';
 import * as log from '../utils/logger.js';
 import { parseConfig } from '../utils/parser.js';
 import { copyPath, detectLanguage, ensureDir, findFile } from '../utils/utils.js';
@@ -398,21 +399,22 @@ export async function finalizeBundle(args: FinalizeBundleArgs): Promise<void> {
   log.info('Bundling contract...');
 
   // .cjs so Node loads it as CommonJS whatever the package.json type
+  const contractPath = resolve(bundleDir, 'contract.cjs');
   await esbuild.build({
     entryPoints: [contractInput],
     bundle: true,
     platform: 'node',
     target: 'node18',
     format: 'cjs',
-    outfile: resolve(bundleDir, 'contract.cjs'),
+    outfile: contractPath,
     sourcemap: isDev,
     minify: false,
     logLevel: 'warning',
+    ...importMetaOptions(contractPath),
   });
   log.success('Contract bundled');
 
   log.info('Validating contract...');
-  const contractPath = resolve(bundleDir, 'contract.cjs');
   const contractModule = await import(pathToFileURL(contractPath).href);
   const contract = contractModule.contract ?? contractModule.default;
 
@@ -583,6 +585,7 @@ export async function buildProject(options: BuildOptions = {}): Promise<void> {
         }
       }
 
+      const importMeta = importMetaOptions(outputFile);
       await esbuild.build({
         entryPoints: [entryPoint],
         bundle: true,
@@ -596,7 +599,9 @@ export async function buildProject(options: BuildOptions = {}): Promise<void> {
         treeShaking: userConfig.mode !== 'development',
         external: externals,
         logLevel: 'warning',
+        ...importMeta,
         plugins: [
+          ...importMeta.plugins,
           {
             name: 'native-node-modules',
             setup(build) {

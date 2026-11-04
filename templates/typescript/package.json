@@ -1,5 +1,5 @@
 {
-  "@camera.ui/sdk": "^1.4.5",
+  "@camera.ui/sdk": "^1.4.6",
   "@types/node": "^26.6.6",
   "rimraf": "^6.1.4",
   "typescript": "5.9.3"

@@ -20,8 +20,8 @@
     "update": "updates -M npm,pypi,go,cargo,docker --update ./ && npm run update:templates"
   },
   "dependencies": {
-    "@camera.ui/sdk": "~1.4.7",
-    "@clack/prompts": "^1.8.1",
+    "@camera.ui/sdk": "~1.4.8",
+    "@clack/prompts": "^1.9.0",
     "adm-zip": "^0.6.1",
     "commander": "^15.1.0",
     "esbuild": "^0.28.2",
@@ -36,13 +36,13 @@
     "@types/fs-extra": "^11.0.4",
     "@types/node": "26.6.6",
     "@types/semver": "^7.8.0",
-    "@typescript-eslint/parser": "^8.72.1",
+    "@typescript-eslint/parser": "^8.72.2",
     "eslint": "9.39.2",
     "globals": "^17.14.0",
     "prettier": "^3.9.10",
     "rimraf": "^6.1.4",
     "typescript": "5.9.3",
-    "typescript-eslint": "^8.72.1",
+    "typescript-eslint": "^8.72.2",
     "updates": "^20.0.1",
     "vitest": "^5.1.0"
   },

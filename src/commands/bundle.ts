@@ -55,6 +55,20 @@ export function targetKey(t: Pick<GoTarget, 'goos' | 'goarch' | 'libc'>): string
 
 const VALID_NPM_OS = ['darwin', 'linux', 'win32'];
 const VALID_NPM_CPU = ['x64', 'arm64'];
+const VALID_LIBC = ['glibc', 'musl'];
+
+function validatePlatformList(field: string, value: unknown, valid: string[]): void {
+  if (!Array.isArray(value) || value.some((entry) => typeof entry !== 'string')) {
+    throw new Error(`package.json "${field}" must be an array of strings (npm platform semantics).`);
+  }
+
+  for (const entry of value as string[]) {
+    const name = entry.startsWith('!') ? entry.slice(1) : entry;
+    if (!valid.includes(name)) {
+      throw new Error(`package.json "${field}" contains "${entry}" — valid values are: ${valid.join(', ')} (optionally negated with "!").`);
+    }
+  }
+}
 
 function validatePlatformDeclaration(packageJson: Record<string, unknown>): void {
   const check = (field: 'os' | 'cpu', valid: string[]) => {
@@ -69,20 +83,17 @@ function validatePlatformDeclaration(packageJson: Record<string, unknown>): void
       );
     }
 
-    if (!Array.isArray(value) || value.some((entry) => typeof entry !== 'string')) {
-      throw new Error(`package.json "${field}" must be an array of strings (npm platform semantics).`);
-    }
-
-    for (const entry of value) {
-      const name = entry.startsWith('!') ? entry.slice(1) : entry;
-      if (!valid.includes(name)) {
-        throw new Error(`package.json "${field}" contains "${entry}" — valid values are: ${valid.join(', ')} (optionally negated with "!").`);
-      }
-    }
+    validatePlatformList(field, value, valid);
   };
 
   check('os', VALID_NPM_OS);
   check('cpu', VALID_NPM_CPU);
+
+  // optional: without it the plugin counts as running on glibc and musl, a typo would rule out every Linux host
+  const libc = (packageJson.cameraui as { libc?: unknown } | undefined)?.libc;
+  if (libc !== undefined) {
+    validatePlatformList('cameraui.libc', libc, VALID_LIBC);
+  }
 }
 
 function resolveGoTargets(mode: string | undefined, goOpts?: GoBuildOptions): GoTarget[] {

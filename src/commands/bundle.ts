@@ -9,7 +9,7 @@ import { arch, platform } from 'node:os';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-import { isPlatformPackageNode, isPlatformPackagePython, PLATFORM_PACKAGES_NODE } from '../platform-packages.js';
+import { isPlatformPackageNode, isPlatformPackagePython, NODE_AV_VARIANTS, PLATFORM_PACKAGES_NODE } from '../platform-packages.js';
 import { showIntro, showOutro } from '../utils/banners.js';
 import { importMetaOptions } from '../utils/importMeta.js';
 import * as log from '../utils/logger.js';
@@ -609,6 +609,8 @@ export async function buildProject(options: BuildOptions = {}): Promise<void> {
         keepNames: true,
         treeShaking: userConfig.mode !== 'development',
         external: externals,
+        // the host ships one node-av variant under the node-av name
+        alias: Object.fromEntries(NODE_AV_VARIANTS.map((name) => [name, 'node-av'])),
         logLevel: 'warning',
         ...importMeta,
         plugins: [

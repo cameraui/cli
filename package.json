@@ -17,7 +17,7 @@
     "release": "bash scripts/release.sh",
     "test": "vitest run",
     "update:templates": "node scripts/update-templates.mjs",
-    "update": "updates -M npm,pypi,go,cargo,docker --update ./ && npm run update:templates"
+    "update": "updates -M npm,pypi,go,cargo,docker -u && npm run update:templates"
   },
   "dependencies": {
     "@camera.ui/sdk": "~1.4.11",
@@ -31,7 +31,7 @@
     "ts-import": "^5.0.0-beta.1"
   },
   "devDependencies": {
-    "@stylistic/eslint-plugin": "^6.0.0",
+    "@stylistic/eslint-plugin": "^5.10.0",
     "@types/adm-zip": "^0.5.8",
     "@types/fs-extra": "^11.0.4",
     "@types/node": "26.6.6",

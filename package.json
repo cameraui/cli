@@ -1,6 +1,6 @@
 {
   "name": "@camera.ui/cli",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "camera.ui cli",
   "type": "module",
   "bin": {

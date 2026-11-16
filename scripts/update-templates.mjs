@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -9,8 +9,11 @@ const dry = process.argv.includes('--dry');
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const templates = join(root, 'templates');
 const updatesBin = join(root, 'node_modules', '.bin', 'updates');
+const updatesConfig = join(templates, 'base', 'updates.config.js');
+const COOLDOWN_DAYS = 7;
+const OWN_PYPI = /^camera[-_]ui[-_]/;
 
-const { default: config } = await import(join(templates, 'base', 'updates.config.js'));
+const { default: config } = await import(updatesConfig);
 const exclude = config?.exclude ?? [];
 
 function runUpdates(file, mode) {
@@ -35,6 +38,7 @@ for (const rel of ['base/package.eslint.json', 'base/package.prettier.json', 'ty
   const tmp = mkdtempSync(join(tmpdir(), 'cui-tpl-'));
   const tmpPkg = join(tmp, 'package.json');
   writeFileSync(tmpPkg, JSON.stringify({ name: 'tpl', version: '0.0.0', dependencies: JSON.parse(raw) }, null, 2));
+  copyFileSync(updatesConfig, join(tmp, 'updates.config.mjs'));
 
   try {
     runUpdates(tmpPkg, 'npm');
@@ -47,14 +51,26 @@ for (const rel of ['base/package.eslint.json', 'base/package.prettier.json', 'ty
   }
 }
 
-async function pypiLatest(name) {
+async function pypiLatest(name, current) {
+  let data;
   try {
     const res = await fetch(`https://pypi.org/pypi/${encodeURIComponent(name)}/json`);
     if (!res.ok) return null;
-    return (await res.json())?.info?.version ?? null;
+    data = await res.json();
   } catch {
     return null;
   }
+  if (OWN_PYPI.test(name)) return data?.info?.version ?? null;
+
+  const cutoff = Date.now() - COOLDOWN_DAYS * 86_400_000;
+  const stable = Object.entries(data?.releases ?? {})
+    .filter(([version, files]) => /^\d+(\.\d+)*$/.test(version) && files.length && !files[0].yanked)
+    .map(([version, files]) => ({ version, uploaded: Date.parse(`${files[0].upload_time}Z`) }))
+    .sort((a, b) => b.uploaded - a.uploaded);
+  for (const { version, uploaded } of stable) {
+    if (version === current || uploaded <= cutoff) return version;
+  }
+  return current;
 }
 
 for (const rel of ['python/requirements.txt', 'python/requirements.dev.txt']) {
@@ -68,7 +84,7 @@ for (const rel of ['python/requirements.txt', 'python/requirements.dev.txt']) {
     if (!m) continue;
     const [, indent, name, op, cur, rest] = m;
     if (exclude.includes(name)) continue;
-    const latest = await pypiLatest(name);
+    const latest = await pypiLatest(name, cur);
     if (!latest) {
       console.log(`⚠ ${name}: not found on PyPI (skipped)`);
     } else if (latest !== cur) {

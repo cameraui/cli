@@ -1,2 +1,2 @@
 ruff==0.17.5
-cupdate==2.0.3
+cupdate==2.1.0

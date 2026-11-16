@@ -64,7 +64,7 @@ async function createVscodeSettings(targetDir: string, options: CreateOptions): 
 
 export async function createBaseFiles(targetDir: string, projectName: string, options: CreateOptions): Promise<void> {
   const baseFiles = ['README.md', 'LICENSE.md', 'CONTRIBUTING.md', 'CHANGELOG.md', 'SECURITY.md', 'updates.config.js'];
-  const baseDotFiles = ['gitignore', 'npmignore', 'editorconfig'];
+  const baseDotFiles = ['gitignore', 'npmignore', 'npmrc', 'editorconfig'];
 
   // python plugins get the TypeScript config too
   const configFiles: string[] = ['cameraui.config.ts'];
@@ -130,7 +130,7 @@ export async function createPackageJson(projectName: string, options: CreateOpti
   if (options.language === 'typescript') {
     pJson.scripts.build = 'rimraf dist && tsc';
   } else if (options.language === 'python') {
-    pJson.scripts.update = pJson.scripts.update + ' && cupdate';
+    pJson.scripts.update = pJson.scripts.update + " && cupdate --cooldown 7 --cooldown-exclude 'camera-ui-*'";
     pJson.scripts.build = 'mypy src';
   } else if (options.language === 'go') {
     pJson.scripts.build = 'go build -o /dev/null ./src/';

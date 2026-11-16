@@ -12,6 +12,10 @@
     "cross-env": "^10.1.0",
     "updates": "^20.0.1"
   },
+  "allowScripts": {
+    "esbuild": true,
+    "fsevents": true
+  },
   "engines": {},
   "keywords": [
     "camera-ui-plugin"

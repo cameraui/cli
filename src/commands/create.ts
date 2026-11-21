@@ -68,6 +68,8 @@ const SENSOR_LABELS: Record<SelectableSensorType, string> = {
   [SensorType.Outlet]: 'Outlet Control',
   [SensorType.Lock]: 'Lock Control',
   [SensorType.Garage]: 'Garage Control',
+  [SensorType.Cover]: 'Cover Control',
+  [SensorType.Thermostat]: 'Thermostat Control',
   [SensorType.SecuritySystem]: 'Security System',
   [SensorType.Chime]: 'Chime Control',
   [SensorType.Display]: 'Display Control',

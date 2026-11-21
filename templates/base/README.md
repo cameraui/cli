@@ -1,194 +1,84 @@
-<p align="center">
-    <img src="https://raw.githubusercontent.com/cameraui/camera.ui/refs/heads/master/images/logo.png">
-</p>
-
 # {{projectName}}
 
-A plugin for [camera.ui](https://github.com/cameraui/camera.ui) that allows you to extend the functionality of your camera system.
+A plugin for [camera.ui](https://github.com/cameraui/camera.ui).
 
-## Setup Development Environment
+## Setup
 
-1. Make sure you have [Node.js](https://nodejs.org) 24.5 or later installed
-2. Install dependencies as described below
+Every plugin needs [Node.js](https://nodejs.org) 24.5 or later, the CLI and `contract.ts` run on it.
 
-## Install Development Dependencies
-
-Install Node dependencies:
 ```bash
 npm install
 ```
 
-For Python plugins, also install Python dependencies:
+Python plugins also need their Python packages, best inside a virtual environment:
+
 ```bash
-pip install -r requirements.txt
-pip install -r requirements.dev.txt
+pip install -r requirements.txt -r requirements.dev.txt
 ```
 
-Note: Create a virtual environment for Python plugins to avoid conflicts with system packages.
+Go plugins fetch their modules with:
 
-## Update package.json
-
-Open the [`package.json`](./package.json) and customize the following attributes:
-
-- `name` - Must be prefixed with `camera-ui-` or `@username/camera-ui-` (e.g., `camera-ui-motion` or `@john/camera-ui-motion`)
-- `displayName` - The user-friendly name shown in the camera.ui interface
-- `description` - A short description of your plugin's functionality
-- `author` - Your name and email address
-- `homepage` - Link to your plugin's README.md
-- `repository.url` - Link to your GitHub repository
-- `bugs.url` - Link to your GitHub issues page
-
-Set `private` to `false` when you're ready to publish.
-
-## Config Schema
-
-The plugin configuration is defined in `config.schema.json`. This schema defines the configuration options available to users.
-
-Example schema:
-```json
-{
-  "schema": {
-    "items": {
-      "type": "object",
-      "title": "Remove Models",
-      "opened": true,
-      "properties": {
-        "model": {
-          "type": "string",
-          "title": "Model",
-          "description": "Model to use for object detection",
-          "required": true,
-          "store": false,
-          "defaultValue": "yolov9m_320 - FP16",
-          "enum": [
-            "yolo3-tinyu - INT8",
-            "yolo3-tinyu_320 - INT8",
-            "yolo3-tinyu - FP16",
-            "yolo3-tinyu_320 - FP16",
-            "yolov5nu - INT8",
-            "yolov5nu_320 - INT8",
-            "yolov5mu - INT8",
-            "yolov5mu_320 - INT8"
-          ]
-        }
-      },
-      "buttons": [
-        {
-          "label": "Remove",
-          "onSubmit": "onRemove"
-        }
-      ]
-    }
-  }
-}
+```bash
+cd src && go mod tidy
 ```
 
-## Bundle Plugin
+## package.json
 
-To create a production bundle of your plugin:
+- `name`: starts with `camera-ui-` or `@scope/camera-ui-`, e.g. `camera-ui-motion` or `@john/camera-ui-motion`
+- `displayName` and `description`: what users see in the plugin store
+- `keywords`: keep `camera-ui-plugin`, the store only lists packages that carry it
+- `engines.camera.ui`: the oldest camera.ui version your plugin runs on
+- `private`: set it to `false` when you are ready to publish
+
+Add `author`, `homepage`, `repository` and `bugs` as for any npm package.
+
+## The plugin
+
+- `contract.ts` tells camera.ui what the plugin is before it loads it: its role, the sensor types it provides and consumes, and the interfaces it implements. Python and Go plugins have it too.
+- The entry point is `src/index.ts`, `src/main.py` or `src/main.go`. The generated file is a working example to start from.
+- Settings on the plugin page come from the plugin's storage schema: the `storageSchema` getter in TypeScript, the `storage_schema` property in Python, `StorageSchema()` in Go.
+
+The SDK guides cover contract, lifecycle, sensors, settings and the optional interfaces:
+
+- [TypeScript](https://cameraui.github.io/sdk/node/examples/getting-started.html)
+- [Python](https://cameraui.github.io/sdk/python/plugin-guide/)
+- [Go](https://cameraui.github.io/sdk/go/plugin-guide/)
+
+## Bundle
 
 ```bash
 npm run bundle
 ```
 
-This will:
-1. Run code quality checks (if enabled)
-2. Build the source code
-3. Copy required files
-4. Create a distributable bundle.zip
+This formats and lints the code if you enabled it, builds it and writes the bundle to the `bundle` directory. `npm run bundle:dev` adds source maps.
 
-The bundled plugin will be available in the `bundle` directory.
+## Test your plugin locally
 
-## Watch For Changes and Build Automatically
+camera.ui loads every plugin it finds in the `plugins` folder of its home directory when it starts. To try a build without publishing it:
 
-// TODO
+1. Run `npm run bundle`
+2. Copy the `bundle` directory into that `plugins` folder and name it after your package, e.g. `plugins/camera-ui-motion` or `plugins/@john/camera-ui-motion`. Replace the folder of an earlier build.
+3. Restart camera.ui
 
-## Customize Plugin
+Where the home directory is:
 
-### JavaScript/TypeScript Plugins
+- Desktop app: `~/Library/Application Support/camera.ui/camera.ui` (macOS), `%APPDATA%\camera.ui\camera.ui` (Windows), `~/.config/camera.ui/camera.ui` (Linux)
+- Linux service: `~/.camera.ui` of the service user
+- Docker: `/data` inside the container
 
-The main entry point is `src/index.ts` (or `src/index.js`). Here you can define your plugin's functionality:
+The Home Assistant app keeps its home where other apps can't reach it. Test on one of the setups above and install the published plugin in Home Assistant.
 
-```typescript
-import type { BasePlugin, LoggerService, PluginAPI } from '@camera.ui/sdk';
+## Publish
 
-export default class SamplePlugin implements BasePlugin {
-    constructor(logger: LoggerService, api: PluginAPI) {
-        ...
-    }
-}
+```bash
+npm run publish:alpha
+npm run publish:beta
+npm run publish:latest
 ```
 
-### Python Plugins
+Each one bundles the plugin, asks for the version and publishes it to npm under that tag. Users find it in the plugin store once it is on npm. A plain `npm publish` stops with an error, use these scripts.
 
-The main entry point is `src/main.py`. Example:
+## Links
 
-```python
-from camera_ui_sdk import (
-    BasePlugin,
-    LoggerService,
-    PluginAPI,
-)
-
-class SamplePlugin(BasePlugin):
-    def __init__(self, logger: LoggerService, api: PluginAPI):
-        ...
-
-def __main__():
-    return SamplePlugin
-```
-
-## Publish Package
-
-When your plugin is ready for release:
-
-1. Make sure all tests pass and the bundle builds successfully
-2. Choose the appropriate publishing command:
-   ```bash
-   # For alpha releases
-   npm run publish:alpha
-
-   # For beta releases
-   npm run publish:beta
-
-   # For stable releases
-   npm run publish:latest
-   ```
-
-The CLI will guide you through version selection and publishing.
-
-## Best Practices
-
-1. **Version Management**
-   - Use semantic versioning (MAJOR.MINOR.PATCH)
-   - Start with alpha/beta releases for testing
-   - Document breaking changes
-
-2. **Code Quality**
-   - Enable and use the provided linting tools
-   - Write clear documentation
-   - Include usage examples
-
-3. **Configuration**
-   - Provide sensible defaults
-   - Validate user input
-   - Document all options
-
-4. **Testing**
-   - Test with different camera.ui versions
-   - Verify all configuration options
-   - Test error handling
-
-5. **Performance**
-   - Minimize dependencies
-   - Optimize resource usage
-   - Handle cleanup properly
-
-## Useful Links
-
-- [camera.ui Documentation](https://github.com/cameraui/camera.ui/wiki)
-- [Plugin Development Guide](https://github.com/cameraui/camera.ui/wiki/plugins)
-- [JSON Schema Documentation](https://json-schema.org/)
-- [Node.js Documentation](https://nodejs.org/docs)
-- [TypeScript Documentation](https://www.typescriptlang.org/docs/)
-- [Python Documentation](https://docs.python.org/)
+- [camera.ui documentation](https://docs.cameraui.com)
+- [Plugins in camera.ui](https://docs.cameraui.com/plugins/)

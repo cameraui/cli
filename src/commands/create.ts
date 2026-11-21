@@ -60,6 +60,7 @@ const SENSOR_LABELS: Record<SelectableSensorType, string> = {
   [SensorType.Illuminance]: 'Illuminance',
   [SensorType.CarbonDioxide]: 'Carbon Dioxide',
   [SensorType.AirQuality]: 'Air Quality',
+  [SensorType.Presence]: 'Presence Sensor',
   [SensorType.Battery]: 'Battery',
   [SensorType.Light]: 'Light Control',
   [SensorType.Siren]: 'Siren Control',

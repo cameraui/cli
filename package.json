@@ -58,7 +58,9 @@
   },
   "keywords": [
     "camera.ui",
-    "cli"
+    "cli",
+    "plugins",
+    "scaffolding"
   ],
   "allowScripts": {
     "esbuild": true,

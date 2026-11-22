@@ -74,6 +74,8 @@ const SENSOR_LABELS: Record<SelectableSensorType, string> = {
   [SensorType.Valve]: 'Valve Control',
   [SensorType.Scene]: 'Scene',
   [SensorType.Humidifier]: 'Humidifier Control',
+  [SensorType.AirPurifier]: 'Air Purifier Control',
+  [SensorType.WaterHeater]: 'Water Heater Control',
   [SensorType.SecuritySystem]: 'Security System',
   [SensorType.Chime]: 'Chime Control',
   [SensorType.Display]: 'Display Control',

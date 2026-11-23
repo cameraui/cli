@@ -5,6 +5,8 @@ import { Command } from 'commander';
 import { artifactsCommand } from './commands/artifacts.js';
 import { buildProject } from './commands/bundle.js';
 import { createProject } from './commands/create.js';
+import { deployProject } from './commands/deploy.js';
+import { loginServer } from './commands/login.js';
 import { publishProject } from './commands/publish.js';
 import pJson from './utils/pjson.js';
 
@@ -26,6 +28,24 @@ program
   .option('-d, --dir <path>', 'Directory containing downloaded artifacts (default: ./artifacts)')
   .action(async (options: { dir?: string }) => {
     await artifactsCommand({ dir: options.dir });
+  });
+
+program
+  .command('login [address]')
+  .description('Log in to a camera.ui server with an API token, for cui deploy')
+  .option('--insecure', 'Accept a certificate this computer does not trust')
+  .action(async (address: string | undefined, options: { insecure?: boolean }) => {
+    await loginServer(address, options);
+  });
+
+program
+  .command('deploy')
+  .description('Bundle the project and install it on a camera.ui server, without publishing it')
+  .option('-s, --server <address>', 'Server to deploy to (default: the last one you logged in to)')
+  .option('-w, --watch', 'Deploy again on every change and show the plugin log')
+  .option('--insecure', 'Accept a certificate this computer does not trust')
+  .action(async (options: { server?: string; watch?: boolean; insecure?: boolean }) => {
+    await deployProject(options);
   });
 
 program

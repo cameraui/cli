@@ -52,21 +52,16 @@ npm run bundle
 
 This formats and lints the code if you enabled it, builds it and writes the bundle to the `bundle` directory. `npm run bundle:dev` adds source maps.
 
-## Test your plugin locally
+## Try it on your server
 
-camera.ui loads every plugin it finds in the `plugins` folder of its home directory when it starts. To try a build without publishing it:
+```bash
+npx cui login 192.168.1.10
+npm run deploy:watch
+```
 
-1. Run `npm run bundle`
-2. Copy the `bundle` directory into that `plugins` folder and name it after your package, e.g. `plugins/camera-ui-motion` or `plugins/@john/camera-ui-motion`. Replace the folder of an earlier build.
-3. Restart camera.ui
+`cui login` asks for an API token of an admin, created in camera.ui under Settings → Account → API tokens, and remembers the server. `npm run deploy:watch` builds the plugin with source maps, installs it on that server and does it again on every saved change. The plugin log runs in the terminal. `npm run deploy` installs once.
 
-Where the home directory is:
-
-- Desktop app: `~/Library/Application Support/camera.ui/camera.ui` (macOS), `%APPDATA%\camera.ui\camera.ui` (Windows), `~/.config/camera.ui/camera.ui` (Linux)
-- Linux service: `~/.camera.ui` of the service user
-- Docker: `/data` inside the container
-
-The Home Assistant app keeps its home where other apps can't reach it. Test on one of the setups above and install the published plugin in Home Assistant.
+camera.ui marks a plugin installed this way as Local and looks for no updates for it.
 
 ## Publish
 

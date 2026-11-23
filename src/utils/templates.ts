@@ -116,6 +116,8 @@ export async function createPackageJson(projectName: string, options: CreateOpti
   pJson.scripts = {
     bundle: 'cui bundle',
     'bundle:dev': 'cross-env MODE=development cui bundle',
+    deploy: 'cross-env MODE=development cui deploy',
+    'deploy:watch': 'cross-env MODE=development cui deploy --watch',
     'install-updates': 'npm i --save',
     update: 'updates --update ./',
     prepublishOnly:

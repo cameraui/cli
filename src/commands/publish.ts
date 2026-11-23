@@ -1,4 +1,4 @@
-import { isCancel, select, text } from '@clack/prompts';
+import { select, text } from '@clack/prompts';
 import { exec, spawn } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
@@ -6,21 +6,12 @@ import { resolve } from 'node:path';
 import { promisify } from 'node:util';
 import semver from 'semver';
 
-import { showCancel, showIntro, showOutro } from '../utils/banners.js';
+import { handleCancel, showCancel, showIntro, showOutro } from '../utils/banners.js';
 import * as log from '../utils/logger.js';
 
-import type { CANCEL_SYMBOL } from '@clack/prompts';
 import type { PublishOptions } from '../types.js';
 
 const execAsync = promisify(exec);
-
-function handleCancel<T>(value: T | typeof CANCEL_SYMBOL): T {
-  if (isCancel(value)) {
-    showCancel('Operation cancelled');
-    process.exit(0);
-  }
-  return value;
-}
 
 function validateBundle(): boolean {
   try {

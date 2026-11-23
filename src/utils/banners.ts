@@ -1,5 +1,7 @@
-import { cancel, intro, outro } from '@clack/prompts';
+import { cancel, intro, isCancel, outro } from '@clack/prompts';
 import pc from 'picocolors';
+
+import type { CANCEL_SYMBOL } from '@clack/prompts';
 
 const defaultBanner = 'camera.ui - Plugin Development CLI';
 
@@ -22,6 +24,14 @@ export function showOutro(message: string): void {
 
 export function showCancel(message?: string): void {
   cancel(pc.red('✖') + (message ? ` ${message}` : ' Operation cancelled'));
+}
+
+export function handleCancel<T>(value: T | typeof CANCEL_SYMBOL): T {
+  if (isCancel(value)) {
+    showCancel('Operation cancelled');
+    process.exit(0);
+  }
+  return value;
 }
 
 export function getBanner(): string {

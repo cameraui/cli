@@ -28,11 +28,11 @@ const DEFAULT_GO_TARGETS: GoTarget[] = [
   { goos: 'windows', goarch: 'arm64' },
 ];
 
-function nodeOsToGoos(p: string): string {
+export function nodeOsToGoos(p: string): string {
   return p === 'win32' ? 'windows' : p;
 }
 
-function nodeArchToGoarch(a: string): string {
+export function nodeArchToGoarch(a: string): string {
   return a === 'x64' ? 'amd64' : a;
 }
 
@@ -468,11 +468,17 @@ export async function finalizeBundle(args: FinalizeBundleArgs): Promise<void> {
 
 export interface BuildOptions {
   target?: string;
+  deployTo?: GoTarget;
 }
 
 export async function buildProject(options: BuildOptions = {}): Promise<void> {
-  const startTime = Date.now();
   showIntro();
+  await bundleProject(options).catch(() => process.exit(1));
+  showOutro('Build complete!');
+}
+
+export async function bundleProject(options: BuildOptions = {}): Promise<string> {
+  const startTime = Date.now();
 
   log.info('Starting build...');
 
@@ -481,6 +487,8 @@ export async function buildProject(options: BuildOptions = {}): Promise<void> {
   const bundleDir = resolve(outputFile, '..', '..');
   const rootDir = userConfig.rootDir ? resolve(process.cwd(), userConfig.rootDir) : process.cwd();
   const pluginLanguage = userConfig.language ?? (await detectLanguage(rootDir));
+  // dev and deploy builds run from the bundle as is: no zip, one Go binary named plugin, no platform packages
+  const isLocal = userConfig.mode === 'development' || !!options.deployTo;
 
   await rm(bundleDir, { recursive: true, force: true });
 
@@ -502,6 +510,10 @@ export async function buildProject(options: BuildOptions = {}): Promise<void> {
 
       const goOpts = userConfig.go;
       let targets = resolveGoTargets(userConfig.mode, goOpts);
+      if (options.deployTo) {
+        const { goos, goarch, libc } = options.deployTo;
+        targets = [goOpts?.targets?.find((t) => t.goos === goos && t.goarch === goarch && (!t.libc || t.libc === libc)) ?? options.deployTo];
+      }
 
       if (options.target) {
         const match = targets.find((t) => targetKey(t) === options.target);
@@ -519,14 +531,12 @@ export async function buildProject(options: BuildOptions = {}): Promise<void> {
       const defaultCompiler = goOpts?.compiler ?? 'go';
       const defaultCompilerArgs = goOpts?.compilerArgs ?? [];
 
-      const isDev = userConfig.mode === 'development';
-
       for (const target of targets) {
         const { goos, goarch } = target;
         const key = targetKey(target);
         const ext = goos === 'windows' ? '.exe' : '';
         // the target in the name lets cui artifacts match uploaded binaries back
-        const outputName = isDev && !options.target ? `plugin${ext}` : `${pluginName}-${key}${ext}`;
+        const outputName = isLocal && !options.target ? `plugin${ext}` : `${pluginName}-${key}${ext}`;
         const outputPath = resolve(binDir, outputName);
         const targetCgoEnabled = target.cgoEnabled ?? defaultCgoEnabled;
         const targetLdflags = target.ldflags ?? defaultLdflags;
@@ -537,7 +547,7 @@ export async function buildProject(options: BuildOptions = {}): Promise<void> {
           GOARCH: goarch,
         };
         if (target.cc) targetEnv.CC = target.cc;
-        const useOverride = !(isDev && !options.target);
+        const useOverride = !!options.deployTo || !(isLocal && !options.target);
         const compiler = useOverride ? (target.compiler ?? defaultCompiler) : 'go';
         const compilerArgs = useOverride ? (target.compilerArgs ?? defaultCompilerArgs) : [];
         const cgoLabel = targetCgoEnabled === '1' ? ' [CGO]' : '';
@@ -558,7 +568,7 @@ export async function buildProject(options: BuildOptions = {}): Promise<void> {
       }
 
       // with --target, cui artifacts stages the platform packages later
-      if (!isDev && !options.target) {
+      if (!isLocal && !options.target) {
         await stagePlatformPackages({
           targets,
           binDir,
@@ -575,8 +585,7 @@ export async function buildProject(options: BuildOptions = {}): Promise<void> {
       if (options.target) {
         const duration = Date.now() - startTime;
         log.buildSuccess(bundleDir, duration);
-        showOutro('Build complete!');
-        return;
+        return bundleDir;
       }
     } else if (pluginLanguage === 'python') {
       await ensureDir(bundleDir);
@@ -649,15 +658,15 @@ export async function buildProject(options: BuildOptions = {}): Promise<void> {
       external,
       additionalFiles: userConfig.additionalFiles,
       goTargets,
-      isDev: userConfig.mode === 'development',
+      isDev: isLocal,
     });
 
     const duration = Date.now() - startTime;
     log.buildSuccess(bundleDir, duration);
 
-    showOutro('Build complete!');
+    return bundleDir;
   } catch (error) {
     log.buildError(error);
-    process.exit(1);
+    throw error;
   }
 }

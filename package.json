@@ -20,7 +20,7 @@
     "update": "updates -M npm,pypi,go,cargo,docker -u && npm run update:templates"
   },
   "dependencies": {
-    "@camera.ui/sdk": "~1.4.12",
+    "@camera.ui/sdk": "~1.5.0",
     "@clack/prompts": "^1.9.0",
     "adm-zip": "^0.6.1",
     "commander": "^15.1.0",
@@ -38,15 +38,15 @@
     "@types/fs-extra": "^11.0.4",
     "@types/node": "26.6.6",
     "@types/semver": "^7.8.0",
-    "@typescript-eslint/parser": "^8.72.2",
+    "@typescript-eslint/parser": "^8.73.0",
     "eslint": "9.39.2",
     "globals": "^17.14.0",
     "prettier": "^3.10.1",
     "rimraf": "^6.1.4",
     "typescript": "5.9.3",
-    "typescript-eslint": "^8.72.2",
-    "updates": "^20.0.1",
-    "vitest": "^5.1.0"
+    "typescript-eslint": "^8.73.0",
+    "updates": "^20.0.2",
+    "vitest": "^5.1.1"
   },
   "author": "seydx (https://github.com/cameraui/cli)",
   "bugs": {
